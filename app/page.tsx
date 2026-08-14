@@ -112,14 +112,14 @@ export default function Home() {
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {tab === "books" ? (
                 <>
-                  <div style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyBetween: "space-between", alignItems: "center" }}>
+                  <div style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
                       <div style={{ fontWeight: "bold", fontSize: "14px" }}>الكتاب المدرسي - المقرر كامل</div>
                       <div style={{ fontSize: "11px", color: "#94a3b8" }}>PDF - 15 MB</div>
                     </div>
                     <button style={{ padding: "6px 12px", backgroundColor: "#22c55e", border: "none", borderRadius: "6px", color: "#fff", fontWeight: "bold", cursor: "pointer" }}>تحميل</button>
                   </div>
-                  <div style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyBetween: "space-between", alignItems: "center" }}>
+                  <div style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
                       <div style={{ fontWeight: "bold", fontSize: "14px" }}>ملخص المراجعة المركزية</div>
                       <div style={{ fontSize: "11px", color: "#94a3b8" }}>PDF - 4 MB</div>
@@ -129,7 +129,7 @@ export default function Home() {
                 </>
               ) : (
                 <>
-                  <div style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyBetween: "space-between", alignItems: "center" }}>
+                  <div style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
                       <div style={{ fontWeight: "bold", fontSize: "14px" }}>امتحان الشهادة السودانية 2022</div>
                       <div style={{ fontSize: "11px", color: "#94a3b8" }}>مع الحلول - PDF</div>
