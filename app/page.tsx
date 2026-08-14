@@ -1,199 +1,147 @@
 "use client";
 
 import React, { useState } from "react";
-import { 
-  BookOpen, 
-  FileText, 
-  CheckCircle, 
-  Download, 
-  ArrowRight, 
-  GraduationCap, 
-  Sparkles,
-  BookMarked
-} from "lucide-react";
 
-const SUBJECTS = [
-  { id: "math", name: "الرياضيات المتخصصة", icon: "📐", color: "from-blue-500 to-indigo-600" },
-  { id: "physics", name: "الفيزياء", icon: "⚡", color: "from-purple-500 to-violet-600" },
-  { id: "chemistry", name: "الكيمياء", icon: "🧪", color: "from-emerald-500 to-teal-600" },
-  { id: "biology", name: "الأحياء", icon: "🧬", color: "from-rose-500 to-pink-600" },
-  { id: "arabic", name: "اللغة العربية", icon: "📖", color: "from-amber-500 to-orange-600" },
-  { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "from-cyan-500 to-blue-600" },
-];
-
-const MOCK_RESOURCES = {
-  books: [
-    { title: "الكتاب المدرسي - الجزء الأول", size: "12.4 MB", date: "2026" },
-    { title: "الكتاب المدرسي - الجزء الثاني", size: "14.1 MB", date: "2026" },
+const SUBJECTS = {
+  scientific: [
+    { id: "math", name: "الرياضيات المتخصصة", icon: "📐", color: "#2563eb" },
+    { id: "physics", name: "الفيزياء", icon: "⚡", color: "#7c3aed" },
+    { id: "chemistry", name: "الكيمياء", icon: "🧪", color: "#059669" },
+    { id: "biology", name: "الأحياء", icon: "🧬", color: "#e11d48" },
+    { id: "arabic", name: "اللغة العربية", icon: "📖", color: "#d97706" },
+    { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "#0891b2" },
   ],
-  pastExams: [
-    { title: "امتحان الشهادة السودانية 2022", size: "2.1 MB", date: "2022" },
-    { title: "امتحان الشهادة السودانية 2021", size: "1.9 MB", date: "2021" },
-  ],
-  mockExams: [
-    { title: "امتحان تجريبي - ولاية الخرطوم", size: "3.5 MB", date: "2025" },
-    { title: "امتحان تجريبي - ولاية نهر النيل", size: "2.8 MB", date: "2025" },
+  literary: [
+    { id: "history", name: "التاريخ", icon: "📜", color: "#b45309" },
+    { id: "geography", name: "الجغرافيا", icon: "🌍", color: "#047857" },
+    { id: "islamic", name: "الدراسات الإسلامية", icon: "🕌", color: "#1d4ed8" },
+    { id: "arabic", name: "اللغة العربية", icon: "📖", color: "#d97706" },
+    { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "#0891b2" },
   ]
 };
 
-export default function StudentApp() {
-  const [selectedTrack, setSelectedTrack] = useState<"scientific" | "literary" | null>(null);
-  const [selectedSubject, setSelectedSubject] = useState<typeof SUBJECTS[0] | null>(null);
-  const [activeTab, setActiveTab] = useState<"books" | "pastExams" | "mockExams">("books");
+export default function Home() {
+  const [track, setTrack] = useState<"scientific" | "literary" | null>(null);
+  const [subject, setSubject] = useState<any>(null);
+  const [tab, setTab] = useState<"books" | "exams">("books");
 
   return (
-    <div dir="rtl" className="min-h-screen bg-slate-50 text-slate-800 font-sans pb-12">
-      <header className="bg-slate-900 text-white p-4 shadow-lg sticky top-0 z-50">
-        <div className="max-w-md mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <GraduationCap className="w-8 h-8 text-amber-400" />
-            <div>
-              <h1 className="font-bold text-lg leading-tight">مساعد الشهادة</h1>
-              <p className="text-xs text-slate-400">النسخة التجريبية MVP</p>
-            </div>
-          </div>
-          <span className="bg-amber-400/20 text-amber-300 text-xs px-2.5 py-1 rounded-full border border-amber-400/30 flex items-center gap-1">
-            <Sparkles className="w-3 h-3" /> الثالث ثانوي
-          </span>
-        </div>
-      </header>
+    <div dir="rtl" style={{ minHeight: "100vh", backgroundColor: "#0f172a", color: "#f8fafc", fontFamily: "sans-serif", padding: "16px" }}>
+      {/* الهيدر */}
+      <div style={{ textAlign: "center", padding: "20px 0", borderBottom: "1px solid #334155" }}>
+        <h1 style={{ fontSize: "24px", fontWeight: "bold", color: "#fbbf24", margin: 0 }}>🎓 مساعد الشهادة السودانية</h1>
+        <p style={{ fontSize: "13px", color: "#94a3b8", marginTop: "4px" }}>المكتبة الرقمية الشاملة للطلاب</p>
+      </div>
 
-      <main className="max-w-md mx-auto p-4 space-y-6">
-        {!selectedTrack && (
-          <div className="space-y-4 pt-6">
-            <div className="text-center space-y-2">
-              <h2 className="text-2xl font-black text-slate-900">مرحباً بك يا بطل 👋</h2>
-              <p className="text-slate-600 text-sm">اختر مسارك الدراسي للوصول المباشر للكتب والامتحانات</p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 pt-4">
+      <div style={{ maxWidth: "480px", margin: "20px auto" }}>
+        {/* اختيار المسار */}
+        {!track && (
+          <div>
+            <h2 style={{ textAlign: "center", fontSize: "18px", marginBottom: "16px" }}>اختر مسارك الدراسي:</h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <button
-                onClick={() => setSelectedTrack("scientific")}
-                className="p-6 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl shadow-md hover:shadow-xl transition-all text-right flex items-center justify-between group active:scale-95"
+                onClick={() => setTrack("scientific")}
+                style={{ padding: "20px", borderRadius: "12px", background: "linear-gradient(to left, #2563eb, #1d4ed8)", color: "#fff", border: "none", fontSize: "18px", fontWeight: "bold", cursor: "pointer", textAlign: "right" }}
               >
-                <div>
-                  <h3 className="text-xl font-bold">المسار العلمي</h3>
-                  <p className="text-blue-100 text-xs mt-1">الفيزياء، الكيمياء، الأحياء، الرياضيات...</p>
-                </div>
-                <ArrowRight className="w-6 h-6 transform group-hover:-translate-x-1 transition-transform rotate-180" />
+                🔬 المسار العلمي
+                <span style={{ display: "block", fontSize: "12px", opacity: 0.8, marginTop: "4px" }}>فيزياء، كيمياء، أحياء، رياضيات...</span>
               </button>
 
               <button
-                onClick={() => setSelectedTrack("literary")}
-                className="p-6 bg-gradient-to-r from-amber-600 to-orange-700 text-white rounded-2xl shadow-md hover:shadow-xl transition-all text-right flex items-center justify-between group active:scale-95"
+                onClick={() => setTrack("literary")}
+                style={{ padding: "20px", borderRadius: "12px", background: "linear-gradient(to left, #d97706, #b45309)", color: "#fff", border: "none", fontSize: "18px", fontWeight: "bold", cursor: "pointer", textAlign: "right" }}
               >
-                <div>
-                  <h3 className="text-xl font-bold">المسار الأدبي</h3>
-                  <p className="text-amber-100 text-xs mt-1">التاريخ، الجغرافيا، الدراسات الإسلامية...</p>
-                </div>
-                <ArrowRight className="w-6 h-6 transform group-hover:-translate-x-1 transition-transform rotate-180" />
+                📚 المسار الأدبي
+                <span style={{ display: "block", fontSize: "12px", opacity: 0.8, marginTop: "4px" }}>تاريخ، جغرافيا، دراسات إسلامية...</span>
               </button>
             </div>
           </div>
         )}
 
-        {selectedTrack && !selectedSubject && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <button
-                onClick={() => setSelectedTrack(null)}
-                className="text-xs text-slate-500 flex items-center gap-1 hover:text-slate-800"
-              >
-                <ArrowRight className="w-4 h-4" /> تغيير المسار
-              </button>
-              <span className="text-sm font-semibold text-slate-700">
-                {selectedTrack === "scientific" ? "المسار العلمي" : "المسار الأدبي"}
-              </span>
-            </div>
-
-            <h2 className="text-xl font-bold text-slate-900">اختر المادة الدراسية:</h2>
-
-            <div className="grid grid-cols-2 gap-3">
-              {SUBJECTS.map((sub) => (
+        {/* عرض المواد */}
+        {track && !subject && (
+          <div>
+            <button onClick={() => setTrack(null)} style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", marginBottom: "12px" }}>
+              ➡️ تغيير المسار ({track === "scientific" ? "العلمي" : "الأدبي"})
+            </button>
+            <h2 style={{ fontSize: "18px", marginBottom: "12px" }}>اختر المادة:</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+              {SUBJECTS[track].map((item) => (
                 <button
-                  key={sub.id}
-                  onClick={() => setSelectedSubject(sub)}
-                  className="p-4 bg-white rounded-xl shadow-sm border border-slate-200/80 hover:border-slate-300 transition-all text-right flex flex-col justify-between h-32 active:scale-95"
+                  key={item.id}
+                  onClick={() => setSubject(item)}
+                  style={{ padding: "16px", borderRadius: "10px", backgroundColor: "#1e293b", border: "1px solid #334155", color: "#fff", cursor: "pointer", textAlign: "center" }}
                 >
-                  <span className="text-3xl">{sub.icon}</span>
-                  <span className="font-bold text-slate-800 text-sm leading-snug">{sub.name}</span>
+                  <div style={{ fontSize: "28px" }}>{item.icon}</div>
+                  <div style={{ fontWeight: "bold", marginTop: "8px", fontSize: "14px" }}>{item.name}</div>
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {selectedSubject && (
-          <div className="space-y-4">
-            <button
-              onClick={() => setSelectedSubject(null)}
-              className="text-xs text-slate-500 flex items-center gap-1 hover:text-slate-800"
-            >
-              <ArrowRight className="w-4 h-4" /> العودة للمواد
+        {/* عرض تفاصيل المادة والمحتوى */}
+        {subject && (
+          <div>
+            <button onClick={() => setSubject(null)} style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", marginBottom: "12px" }}>
+              ➡️ العودة لقائمة المواد
             </button>
 
-            <div className={`p-5 rounded-2xl bg-gradient-to-r ${selectedSubject.color} text-white shadow-lg`}>
-              <div className="flex items-center gap-3">
-                <span className="text-4xl p-2 bg-white/10 rounded-xl backdrop-blur-sm">{selectedSubject.icon}</span>
-                <div>
-                  <h2 className="text-xl font-black">{selectedSubject.name}</h2>
-                  <p className="text-xs text-white/80">الصف الثالث ثانوي</p>
-                </div>
-              </div>
+            <div style={{ padding: "16px", borderRadius: "12px", backgroundColor: subject.color, color: "#fff", textAlign: "center", marginBottom: "16px" }}>
+              <span style={{ fontSize: "36px" }}>{subject.icon}</span>
+              <h2 style={{ margin: "8px 0 0 0", fontSize: "20px" }}>{subject.name}</h2>
             </div>
 
-            <div className="flex bg-slate-200/80 p-1 rounded-xl text-xs font-semibold">
+            {/* أزرار التنقل بين الكتب والامتحانات */}
+            <div style={{ display: "flex", backgroundColor: "#1e293b", borderRadius: "8px", padding: "4px", marginBottom: "16px" }}>
               <button
-                onClick={() => setActiveTab("books")}
-                className={`flex-1 py-2.5 rounded-lg transition-all flex items-center justify-center gap-1 ${
-                  activeTab === "books" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"
-                }`}
+                onClick={() => setTab("books")}
+                style={{ flex: 1, padding: "8px", border: "none", borderRadius: "6px", backgroundColor: tab === "books" ? "#3b82f6" : "transparent", color: "#fff", cursor: "pointer", fontWeight: "bold" }}
               >
-                <BookOpen className="w-3.5 h-3.5" /> الكتب
+                📖 الكتب والملخصات
               </button>
               <button
-                onClick={() => setActiveTab("pastExams")}
-                className={`flex-1 py-2.5 rounded-lg transition-all flex items-center justify-center gap-1 ${
-                  activeTab === "pastExams" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"
-                }`}
+                onClick={() => setTab("exams")}
+                style={{ flex: 1, padding: "8px", border: "none", borderRadius: "6px", backgroundColor: tab === "exams" ? "#3b82f6" : "transparent", color: "#fff", cursor: "pointer", fontWeight: "bold" }}
               >
-                <FileText className="w-3.5 h-3.5" /> امتحانات سابقة
-              </button>
-              <button
-                onClick={() => setActiveTab("mockExams")}
-                className={`flex-1 py-2.5 rounded-lg transition-all flex items-center justify-center gap-1 ${
-                  activeTab === "mockExams" ? "bg-white text-slate-900 shadow-sm" : "text-slate-600"
-                }`}
-              >
-                <CheckCircle className="w-3.5 h-3.5" /> تجريبية
+                📝 امتحانات سابقة
               </button>
             </div>
 
-            <div className="space-y-2.5">
-              {MOCK_RESOURCES[activeTab].map((file, idx) => (
-                <div
-                  key={idx}
-                  className="p-4 bg-white rounded-xl shadow-sm border border-slate-200/80 flex items-center justify-between gap-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="p-2.5 bg-slate-100 rounded-lg text-slate-700 shrink-0">
-                      <BookMarked className="w-5 h-5" />
+            {/* قائمة الملفات للتحميل */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {tab === "books" ? (
+                <>
+                  <div style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyBetween: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontWeight: "bold", fontSize: "14px" }}>الكتاب المدرسي - المقرر كامل</div>
+                      <div style={{ fontSize: "11px", color: "#94a3b8" }}>PDF - 15 MB</div>
                     </div>
-                    <div className="truncate">
-                      <h4 className="font-bold text-sm text-slate-800 truncate">{file.title}</h4>
-                      <p className="text-xs text-slate-400 mt-0.5">الحجم: {file.size}</p>
-                    </div>
+                    <button style={{ padding: "6px 12px", backgroundColor: "#22c55e", border: "none", borderRadius: "6px", color: "#fff", fontWeight: "bold", cursor: "pointer" }}>تحميل</button>
                   </div>
-
-                  <button className="p-2.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors shrink-0 flex items-center gap-1 text-xs font-semibold active:scale-95">
-                    <Download className="w-4 h-4" /> تحميل
-                  </button>
-                </div>
-              ))}
+                  <div style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyBetween: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontWeight: "bold", fontSize: "14px" }}>ملخص المراجعة المركزية</div>
+                      <div style={{ fontSize: "11px", color: "#94a3b8" }}>PDF - 4 MB</div>
+                    </div>
+                    <button style={{ padding: "6px 12px", backgroundColor: "#22c55e", border: "none", borderRadius: "6px", color: "#fff", fontWeight: "bold", cursor: "pointer" }}>تحميل</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyBetween: "space-between", alignItems: "center" }}>
+                    <div>
+                      <div style={{ fontWeight: "bold", fontSize: "14px" }}>امتحان الشهادة السودانية 2022</div>
+                      <div style={{ fontSize: "11px", color: "#94a3b8" }}>مع الحلول - PDF</div>
+                    </div>
+                    <button style={{ padding: "6px 12px", backgroundColor: "#22c55e", border: "none", borderRadius: "6px", color: "#fff", fontWeight: "bold", cursor: "pointer" }}>تحميل</button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }
