@@ -2,6 +2,28 @@
 
 import React, { useState } from "react";
 
+// 1. قاعدة بيانات المواد والملفات المربوطة بـ Supabase
+const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
+  math: {
+    books: [
+      {
+        title: "الكتاب المدرسي - الرياضيات المتخصصة",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/math.pdf.pdf",
+      },
+    ],
+    exams: [],
+  },
+  physics: { books: [], exams: [] },
+  chemistry: { books: [], exams: [] },
+  biology: { books: [], exams: [] },
+  arabic: { books: [], exams: [] },
+  english: { books: [], exams: [] },
+  history: { books: [], exams: [] },
+  geography: { books: [], exams: [] },
+  islamic: { books: [], exams: [] },
+};
+
 const SUBJECTS = {
   scientific: [
     { id: "math", name: "الرياضيات المتخصصة", icon: "📐", color: "#2563eb" },
@@ -17,13 +39,15 @@ const SUBJECTS = {
     { id: "islamic", name: "الدراسات الإسلامية", icon: "🕌", color: "#1d4ed8" },
     { id: "arabic", name: "اللغة العربية", icon: "📖", color: "#d97706" },
     { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "#0891b2" },
-  ]
+  ],
 };
 
 export default function Home() {
   const [track, setTrack] = useState<"scientific" | "literary" | null>(null);
   const [subject, setSubject] = useState<any>(null);
   const [tab, setTab] = useState<"books" | "exams">("books");
+
+  const currentFiles = subject ? CONTENT_DATABASE[subject.id]?.[tab] || [] : [];
 
   return (
     <div dir="rtl" style={{ minHeight: "100vh", backgroundColor: "#0f172a", color: "#f8fafc", fontFamily: "sans-serif", padding: "16px" }}>
@@ -108,35 +132,29 @@ export default function Home() {
               </button>
             </div>
 
-            {/* قائمة الملفات للتحميل */}
+            {/* قائمة الملفات الحقيقية */}
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {tab === "books" ? (
-                <>
-                  <div style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              {currentFiles.length > 0 ? (
+                currentFiles.map((file: any, idx: number) => (
+                  <div key={idx} style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
-                      <div style={{ fontWeight: "bold", fontSize: "14px" }}>الكتاب المدرسي - المقرر كامل</div>
-                      <div style={{ fontSize: "11px", color: "#94a3b8" }}>PDF - 15 MB</div>
+                      <div style={{ fontWeight: "bold", fontSize: "14px" }}>{file.title}</div>
+                      <div style={{ fontSize: "11px", color: "#94a3b8" }}>{file.size}</div>
                     </div>
-                    <button style={{ padding: "6px 12px", backgroundColor: "#22c55e", border: "none", borderRadius: "6px", color: "#fff", fontWeight: "bold", cursor: "pointer" }}>تحميل</button>
+                    <a
+                      href={file.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ padding: "6px 12px", backgroundColor: "#22c55e", textDecoration: "none", color: "#fff", borderRadius: "6px", fontWeight: "bold", fontSize: "13px" }}
+                    >
+                      تحميل
+                    </a>
                   </div>
-                  <div style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontWeight: "bold", fontSize: "14px" }}>ملخص المراجعة المركزية</div>
-                      <div style={{ fontSize: "11px", color: "#94a3b8" }}>PDF - 4 MB</div>
-                    </div>
-                    <button style={{ padding: "6px 12px", backgroundColor: "#22c55e", border: "none", borderRadius: "6px", color: "#fff", fontWeight: "bold", cursor: "pointer" }}>تحميل</button>
-                  </div>
-                </>
+                ))
               ) : (
-                <>
-                  <div style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontWeight: "bold", fontSize: "14px" }}>امتحان الشهادة السودانية 2022</div>
-                      <div style={{ fontSize: "11px", color: "#94a3b8" }}>مع الحلول - PDF</div>
-                    </div>
-                    <button style={{ padding: "6px 12px", backgroundColor: "#22c55e", border: "none", borderRadius: "6px", color: "#fff", fontWeight: "bold", cursor: "pointer" }}>تحميل</button>
-                  </div>
-                </>
+                <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
+                  لا توجد ملفات مرفوعة حالياً لهذه المادة.
+                </div>
               )}
             </div>
           </div>
