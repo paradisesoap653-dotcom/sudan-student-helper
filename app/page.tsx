@@ -1,4 +1,71 @@
-   .eq("subject_id", subject.id)
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { supabase } from "../supabaseClient";
+
+const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
+  math: {
+    books: [
+      {
+        title: "الكتاب المدرسي - الرياضيات المتخصصة (الجزء الأول)",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/math.pdf",
+      },
+      {
+        title: "الكتاب المدرسي - الرياضيات المتخصصة (الجزء الثاني)",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/mathm.pdf",
+      },
+    ],
+    exams: [],
+  },
+  physics: { books: [], exams: [] },
+  chemistry: { books: [], exams: [] },
+  biology: { books: [], exams: [] },
+  arabic: { books: [], exams: [] },
+  english: { books: [], exams: [] },
+  history: { books: [], exams: [] },
+  geography: { books: [], exams: [] },
+  islamic: { books: [], exams: [] },
+};
+
+const SUBJECTS = {
+  scientific: [
+    { id: "math", name: "الرياضيات المتخصصة", icon: "📐", color: "#2563eb" },
+    { id: "physics", name: "الفيزياء", icon: "⚡", color: "#7c3aed" },
+    { id: "chemistry", name: "الكيمياء", icon: "🧪", color: "#059669" },
+    { id: "biology", name: "الأحياء", icon: "🧬", color: "#e11d48" },
+    { id: "arabic", name: "اللغة العربية", icon: "📖", color: "#d97706" },
+    { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "#0891b2" },
+  ],
+  literary: [
+    { id: "history", name: "التاريخ", icon: "📜", color: "#b45309" },
+    { id: "geography", name: "الجغرافيا", icon: "🌍", color: "#047857" },
+    { id: "islamic", name: "الدراسات الإسلامية", icon: "🕌", color: "#1d4ed8" },
+    { id: "arabic", name: "اللغة العربية", icon: "📖", color: "#d97706" },
+    { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "#0891b2" },
+  ],
+};
+
+export default function Home() {
+  const [track, setTrack] = useState<"scientific" | "literary" | null>(null);
+  const [subject, setSubject] = useState<any>(null);
+  const [tab, setTab] = useState<"books" | "exams" | "lessons">("books");
+
+  const [lessons, setLessons] = useState<any[]>([]);
+  const [loadingLessons, setLoadingLessons] = useState(false);
+  const [selectedLesson, setSelectedLesson] = useState<any>(null);
+
+  const currentFiles = subject && tab !== "lessons" ? CONTENT_DATABASE[subject.id]?.[tab] || [] : [];
+
+  useEffect(() => {
+    if (tab === "lessons" && subject) {
+      setLoadingLessons(true);
+      setSelectedLesson(null);
+      supabase
+        .from("lessons")
+        .select("*")
+        .eq("subject_id", subject.id)
         .then(({ data, error }) => {
           if (!error && data) {
             setLessons(data);
@@ -175,4 +242,4 @@
       </div>
     </div>
   );
-                        }
+             }
