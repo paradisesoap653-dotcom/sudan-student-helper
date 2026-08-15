@@ -3,80 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>الدروس التفاعلية - الرياضيات المتخصصة</title>
-    <!-- Tailwind CSS -->
+    <title>الرياضيات المتخصصة - الدروس التفاعلية</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Supabase JS Client -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
     <style>
-        body {
-            font-family: 'Cairo', sans-serif;
-            background-color: #0b2246;
-            color: #ffffff;
-            font-size: 18px;
-            line-height: 1.8;
-        }
+        body { font-family: 'Cairo', sans-serif; background-color: #0b2246; color: #ffffff; }
     </style>
 </head>
 <body class="min-h-screen p-4 sm:p-6">
 
-    <!-- شريط علوي للرجوع -->
-    <div class="max-w-4xl mx-auto mb-6 flex justify-between items-center">
-        <a href="index.html" class="bg-blue-900 hover:bg-blue-800 text-amber-400 px-4 py-2 rounded-xl font-bold flex items-center gap-2 border border-blue-700 transition">
-            <i class="fa-solid fa-arrow-right"></i> العودة للقائمة الرئيسية
+    <!-- ترويسة الموقع العلوي -->
+    <div class="max-w-4xl mx-auto text-center mb-6">
+        <h1 class="text-2xl sm:text-3xl font-black text-amber-400 mb-1">🎓 مساعد الشهادة السودانية</h1>
+        <p class="text-slate-300 text-sm">المكتبة الرقمية الشاملة للطلاب</p>
+    </div>
+
+    <!-- شريط الرجوع -->
+    <div class="max-w-4xl mx-auto mb-4 flex justify-between items-center">
+        <a href="index.html" class="bg-blue-900 hover:bg-blue-800 text-amber-400 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 border border-blue-700">
+            <i class="fa-solid fa-arrow-right"></i> العودة لقائمة المواد
         </a>
     </div>
 
-    <!-- مكان عرض الدرس القادم من قاعدة البيانات -->
-    <main id="lesson-container" class="max-w-4xl mx-auto">
-        <div class="text-center py-20">
-            <i class="fa-solid fa-spinner fa-spin text-4xl text-amber-400 mb-3"></i>
-            <p class="text-slate-300 font-bold">جاري تحميل المحتوى من قاعدة البيانات...</p>
+    <!-- محتوى الدرس التفاعلي الشامل (الخلاصة) -->
+    <div class="max-w-4xl mx-auto space-y-6 font-cairo">
+
+        <!-- ترويسة المادة -->
+        <div class="bg-blue-600 border border-blue-500 rounded-2xl p-6 text-center shadow-xl">
+            <div class="w-12 h-12 mx-auto mb-2 text-white flex items-center justify-center text-2xl">
+                <i class="fa-solid fa-triangle-ruler"></i>
+            </div>
+            <h2 class="text-2xl sm:text-3xl font-black text-white mb-1">الرياضيات المتخصصة</h2>
+            <p class="text-blue-100 font-bold text-sm">الخلاصة الشاملة - قوانين، خطوات، وأمثلة أساسية</p>
         </div>
-    </main>
 
-    <!-- سكربت الاتصال وجلب البيانات -->
-    <script>
-        // ضع مفاتيح ربط Supabase الخاصة بك هنا
-        const SUPABASE_URL = 'https://paradisesoop653-dotcom.supabase.co'; // استبدلها برابط مشروعك إذا لزم
-        const SUPABASE_ANON_KEY = 'مفتاح_الـ_anon_العام_هنا'; // مفتاحك الخاص بـ Supabase
-        
-        // أو إذا كنت تستخدم ملف إعدادات مشترك، تأكد من تهيئة العميل هكذا:
-        // const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        <!-- أزرار التنقل السريعة -->
+        <div class="grid grid-cols-3 gap-2 bg-slate-900/80 p-2 rounded-xl border border-blue-900 text-center font-bold text-xs sm:text-sm">
+            <a href="#" class="bg-blue-900/60 py-2 rounded-lg text-slate-200">📖 الكتب</a>
+            <a href="#" class="bg-blue-900/60 py-2 rounded-lg text-slate-200">📝 امتحانات</a>
+            <a href="#" class="bg-blue-600 text-amber-300 py-2 rounded-lg shadow">⚡ الدروس التفاعلية</a>
+        </div>
 
-        async function loadLessonFromDatabase() {
-            try {
-                // الاتصال بجدول lessons لجلب المحتوى
-                const response = await fetch('/api/get-lessons'); // أو استعلام مباشر لـ Supabase حسب إعدادك
-                // الطريقة المباشرة لـ Supabase JS:
-                const { data, error } = window.supabase ? await window.supabase.from('lessons').select('*') : { data: null };
-                
-                // للتبسيط وسرعة ظهور العمل، سنقوم بجلب أول صف يحتوي على محتوى
-                const supabaseInstance = window.supabase?.createClient ? window.supabase.createClient('https://YOUR_SUPABASE_URL.supabase.co', 'YOUR_ANON_KEY') : null;
-                
-                // سنعتمد على الحاوية ونحقن البيانات المباشرة
-                document.getElementById('lesson-container').innerHTML = `
-                    <!-- سيتم جلب وعرض محتوى الـ content هنا تلقائياً -->
-                `;
-            } catch (err) {
-                console.error(err);
-            }
-        }
-    </script>
-    
-    <!-- السكربت المباشر الأبسط لجلب بيانات الجدول وعرضها فوراً -->
-    <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+        <!-- الوحدة الأولى -->
+        <section class="bg-slate-900/90 border border-blue-900 rounded-2xl p-5 shadow-lg">
+            <h2 class="text-xl font-black text-amber-400 mb-4 border-b border-blue-800 pb-2 flex items-center gap-2">
+                <i class="fa-solid fa-infinity"></i> الوحدة الأولى: الاستنتاج الرياضي، التباديل، والتوافيق
+            </h2>
 
-        // ربط مباشر وسريع لقاعدة بياناتك
-        const supabaseUrl = 'https://paradisesoop653-dotcom.supabase.co'
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' // مفتاحك
-        // لكن لتجنب كتابة المفاتيح الطويلة، إليك الطريقة الأضمن والأسرع:
-    </script>
+            <div class="space-y-4 font-bold text-slate-200 text-sm sm:text-base">
+                <div class="bg-blue-950/60 p-4 rounded-xl border border-blue-800">
+                    <h3 class="text-base font-black text-amber-300 mb-2">مبدأ الاستنتاج الرياضي:</h3>
+                    <ol class="list-decimal list-inside space-y-1 text-slate-300">
+                        <li>نثبت صحة العبارة عند <span class="text-amber-400 font-extrabold">ن = 1</span>.</li>
+                        <li>نفرض صحة العبارة عند <span class="text-amber-400 font-extrabold">ن = ر</span>.</li>
+                        <li>نثبت صحة العبارة عند <span class="text-amber-400 font-extrabold">ن = ر + 1</span>.</li>
+                    </ol>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-blue-900/80 border-r-4 border-amber-400 rounded-xl p-3">
+                        <h4 class="font-black text-amber-300 mb-1">قانون التباديل (<sup>ن</sup>ل<sub>ر</sub>)</h4>
+                        <p class="text-center font-black text-lg text-amber-400 bg-blue-950 p-2 rounded mt-2">
+                            <sup>ن</sup>ل<sub>ر</sub> = ن! / (ن - ر)!
+                        </p>
+                    </div>
+                    <div class="bg-blue-900/80 border-r-4 border-amber-400 rounded-xl p-3">
+                        <h4 class="font-black text-amber-300 mb-1">قانون التوافيق (<sup>ن</sup>ق<sub>ر</sub>)</h4>
+                        <p class="text-center font-black text-lg text-amber-400 bg-blue-950 p-2 rounded mt-2">
+                            <sup>ن</sup>ق<sub>ر</sub> = ن! / [ ر! (ن - ر)! ]
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- الوحدة الثانية -->
+        <section class="bg-slate-900/90 border border-blue-900 rounded-2xl p-5 shadow-lg">
+            <h2 class="text-xl font-black text-amber-400 mb-4 border-b border-blue-800 pb-2 flex items-center gap-2">
+                <i class="fa-solid fa-table"></i> الوحدة الثانية: المصفوفات
+            </h2>
+            <div class="space-y-2 font-bold text-slate-200 text-sm sm:text-base">
+                <p>• <strong class="text-amber-300">تساوي مصفوفتين:</strong> نفس البُعد والعناصر المتناظرة متساوية.</p>
+                <p>• <strong class="text-amber-300">جمع وطرح المصفوفات:</strong> يشترط اتحاد وتطابق البُعدين تماماً.</p>
+                <p>• <strong class="text-amber-300">ضرب المصفوفات:</strong> عدد أعمدة الأولى يجب أن يساوي عدد صفوف الثانية.</p>
+                <p>• <strong class="text-amber-300">منقول المصفوفة (أ<sup>ت</sup>):</strong> قلب الصفوف أعمدة والأعمدة صفوفاً.</p>
+            </div>
+        </section>
+
+        <!-- الوحدة الثالثة -->
+        <section class="bg-slate-900/90 border border-blue-900 rounded-2xl p-5 shadow-lg">
+            <h2 class="text-xl font-black text-amber-400 mb-4 border-b border-blue-800 pb-2 flex items-center gap-2">
+                <i class="fa-solid fa-divide"></i> الوحدة الثالثة: الكسور الجزئية
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-slate-200 font-bold text-xs sm:text-sm">
+                <div class="bg-blue-950/60 p-3 rounded-xl border border-blue-800">
+                    <h3 class="text-amber-300 font-black mb-1">1. خطية غير متكررة</h3>
+                    <p class="text-slate-300">أ / (أس + ب)</p>
+                </div>
+                <div class="bg-blue-950/60 p-3 rounded-xl border border-blue-800">
+                    <h3 class="text-amber-300 font-black mb-1">2. خطية متكررة</h3>
+                    <p class="text-slate-300">[أ<sub>1</sub> / (أس + ب)] + [أ<sub>2</sub> / (أس + ب)<sup>2</sup>]</p>
+                </div>
+                <div class="bg-blue-950/60 p-3 rounded-xl border border-blue-800">
+                    <h3 class="text-amber-300 font-black mb-1">3. تربيعية غير قابلة</h3>
+                    <p class="text-slate-300">(ل س + ك) / (أس<sup>2</sup> + بس + ج)</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- الوحدة الرابعة -->
+        <section class="bg-slate-900/90 border border-blue-900 rounded-2xl p-5 shadow-lg">
+            <h2 class="text-xl font-black text-amber-400 mb-4 border-b border-blue-800 pb-2 flex items-center gap-2">
+                <i class="fa-solid fa-dice"></i> الوحدة الرابعة: الاحتمالات
+            </h2>
+            <div class="space-y-3 font-bold text-slate-200 text-sm sm:text-base">
+                <div class="bg-blue-900/80 border-r-4 border-amber-400 rounded-xl p-3">
+                    <h3 class="text-amber-300 font-black mb-1">قانون الجمع العام:</h3>
+                    <p class="text-center text-base sm:text-lg text-amber-400 bg-blue-950 p-2 rounded">
+                        ح(أ ∪ ب) = ح(أ) + ح(ب) - ح(أ ∩ ب)
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
 </body>
 </html>
