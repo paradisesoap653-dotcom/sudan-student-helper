@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
 
-// 1. قاعدة بيانات المواد والملفات المربوطة بـ Supabase
 const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
   math: {
     books: [
@@ -45,20 +45,41 @@ const SUBJECTS = {
 export default function Home() {
   const [track, setTrack] = useState<"scientific" | "literary" | null>(null);
   const [subject, setSubject] = useState<any>(null);
-  const [tab, setTab] = useState<"books" | "exams">("books");
+  const [tab, setTab] = useState<"books" | "exams" | "lessons">("books");
 
-  const currentFiles = subject ? CONTENT_DATABASE[subject.id]?.[tab] || [] : [];
+  const [lessons, setLessons] = useState<any[]>([]);
+  const [loadingLessons, setLoadingLessons] = useState(false);
+  const [selectedLesson, setSelectedLesson] = useState<any>(null);
+
+  const currentFiles = subject && tab !== "lessons" ? CONTENT_DATABASE[subject.id]?.[tab] || [] : [];
+
+  useEffect(() => {
+    if (tab === "lessons" && subject) {
+      setLoadingLessons(true);
+      setSelectedLesson(null);
+      supabase
+        .from("lessons")
+        .select("*")
+        .eq("subject_id", subject.id)
+        .then(({ data, error }) => {
+          if (!error && data) {
+            setLessons(data);
+          } else {
+            setLessons([]);
+          }
+          setLoadingLessons(false);
+        });
+    }
+  }, [tab, subject]);
 
   return (
     <div dir="rtl" style={{ minHeight: "100vh", backgroundColor: "#0f172a", color: "#f8fafc", fontFamily: "sans-serif", padding: "16px" }}>
-      {/* الهيدر */}
       <div style={{ textAlign: "center", padding: "20px 0", borderBottom: "1px solid #334155" }}>
         <h1 style={{ fontSize: "24px", fontWeight: "bold", color: "#fbbf24", margin: 0 }}>🎓 مساعد الشهادة السودانية</h1>
         <p style={{ fontSize: "13px", color: "#94a3b8", marginTop: "4px" }}>المكتبة الرقمية الشاملة للطلاب</p>
       </div>
 
       <div style={{ maxWidth: "480px", margin: "20px auto" }}>
-        {/* اختيار المسار */}
         {!track && (
           <div>
             <h2 style={{ textAlign: "center", fontSize: "18px", marginBottom: "16px" }}>اختر مسارك الدراسي:</h2>
@@ -82,7 +103,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* عرض المواد */}
         {track && !subject && (
           <div>
             <button onClick={() => setTrack(null)} style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", marginBottom: "12px" }}>
@@ -104,10 +124,16 @@ export default function Home() {
           </div>
         )}
 
-        {/* عرض تفاصيل المادة والمحتوى */}
         {subject && (
           <div>
-            <button onClick={() => setSubject(null)} style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", marginBottom: "12px" }}>
+            <button
+              onClick={() => {
+                setSubject(null);
+                setTab("books");
+                setSelectedLesson(null);
+              }}
+              style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", marginBottom: "12px" }}
+            >
               ➡️ العودة لقائمة المواد
             </button>
 
@@ -116,50 +142,99 @@ export default function Home() {
               <h2 style={{ margin: "8px 0 0 0", fontSize: "20px" }}>{subject.name}</h2>
             </div>
 
-            {/* أزرار التنقل بين الكتب والامتحانات */}
             <div style={{ display: "flex", backgroundColor: "#1e293b", borderRadius: "8px", padding: "4px", marginBottom: "16px" }}>
               <button
-                onClick={() => setTab("books")}
-                style={{ flex: 1, padding: "8px", border: "none", borderRadius: "6px", backgroundColor: tab === "books" ? "#3b82f6" : "transparent", color: "#fff", cursor: "pointer", fontWeight: "bold" }}
+                onClick={() => { setTab("books"); setSelectedLesson(null); }}
+                style={{ flex: 1, padding: "8px", border: "none", borderRadius: "6px", backgroundColor: tab === "books" ? "#3b82f6" : "transparent", color: "#fff", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}
               >
-                📖 الكتب والملخصات
+                📖 الكتب
               </button>
               <button
-                onClick={() => setTab("exams")}
-                style={{ flex: 1, padding: "8px", border: "none", borderRadius: "6px", backgroundColor: tab === "exams" ? "#3b82f6" : "transparent", color: "#fff", cursor: "pointer", fontWeight: "bold" }}
+                onClick={() => { setTab("exams"); setSelectedLesson(null); }}
+                style={{ flex: 1, padding: "8px", border: "none", borderRadius: "6px", backgroundColor: tab === "exams" ? "#3b82f6" : "transparent", color: "#fff", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}
               >
-                📝 امتحانات سابقة
+                📝 امتحانات
+              </button>
+              <button
+                onClick={() => setTab("lessons")}
+                style={{ flex: 1, padding: "8px", border: "none", borderRadius: "6px", backgroundColor: tab === "lessons" ? "#3b82f6" : "transparent", color: "#fff", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}
+              >
+                ⚡ الدروس التفاعلية
               </button>
             </div>
 
-            {/* قائمة الملفات الحقيقية */}
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              {currentFiles.length > 0 ? (
-                currentFiles.map((file: any, idx: number) => (
-                  <div key={idx} style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontWeight: "bold", fontSize: "14px" }}>{file.title}</div>
-                      <div style={{ fontSize: "11px", color: "#94a3b8" }}>{file.size}</div>
+            {tab !== "lessons" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {currentFiles.length > 0 ? (
+                  currentFiles.map((file: any, idx: number) => (
+                    <div key={idx} style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontWeight: "bold", fontSize: "14px" }}>{file.title}</div>
+                        <div style={{ fontSize: "11px", color: "#94a3b8" }}>{file.size}</div>
+                      </div>
+                      <a
+                        href={file.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ padding: "6px 12px", backgroundColor: "#22c55e", textDecoration: "none", color: "#fff", borderRadius: "6px", fontWeight: "bold", fontSize: "13px" }}
+                      >
+                        تحميل
+                      </a>
                     </div>
-                    <a
-                      href={file.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ padding: "6px 12px", backgroundColor: "#22c55e", textDecoration: "none", color: "#fff", borderRadius: "6px", fontWeight: "bold", fontSize: "13px" }}
-                    >
-                      تحميل
-                    </a>
+                  ))
+                ) : (
+                  <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
+                    لا توجد ملفات مرفوعة حالياً لهذه المادة.
                   </div>
-                ))
-              ) : (
-                <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
-                  لا توجد ملفات مرفوعة حالياً لهذه المادة.
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
+
+            {tab === "lessons" && (
+              <div>
+                {selectedLesson ? (
+                  <div>
+                    <button
+                      onClick={() => setSelectedLesson(null)}
+                      style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", marginBottom: "12px" }}
+                    >
+                      ➡️ العودة لقائمة الدروس
+                    </button>
+                    <div style={{ backgroundColor: "#1e293b", borderRadius: "10px", padding: "16px" }}>
+                      <h3 style={{ color: "#fbbf24", marginTop: 0 }}>{selectedLesson.lesson_title}</h3>
+                      <div
+                        style={{ color: "#e2e8f0", lineHeight: 1.8 }}
+                        dangerouslySetInnerHTML={{ __html: selectedLesson.content }}
+                      />
+                    </div>
+                  </div>
+                ) : loadingLessons ? (
+                  <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
+                    جاري تحميل الدروس...
+                  </div>
+                ) : lessons.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {lessons.map((lesson) => (
+                      <button
+                        key={lesson.id}
+                        onClick={() => setSelectedLesson(lesson)}
+                        style={{ padding: "14px", borderRadius: "8px", backgroundColor: "#1e293b", border: "1px solid #334155", color: "#fff", textAlign: "right", cursor: "pointer" }}
+                      >
+                        <div style={{ fontSize: "12px", color: "#fbbf24", marginBottom: "4px" }}>{lesson.unit_title}</div>
+                        <div style={{ fontWeight: "bold", fontSize: "14px" }}>{lesson.lesson_title}</div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
+                    لا توجد دروس تفاعلية مضافة حالياً لهذه المادة.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
   );
-}
+                               }
