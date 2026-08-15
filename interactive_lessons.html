@@ -1,112 +1,25 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl" class="scroll-smooth">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>الرياضيات المتخصصة - الدروس التفاعلية</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- مكتبة Supabase للربط الديناميكي -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        body { font-family: 'Cairo', sans-serif; background-color: #0b2246; color: #ffffff; }
+<!doctype html>
+<html lang="ar" dir="rtl">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>الدروس التفاعلية - مساعد الطلاب</title>
+  <style>
+        body { font-family: sans-serif; padding: 20px; line-height: 1.6; }
+        .lesson-container { margin: 20px 0; text-align: center; border: 1px solid #ddd; padding: 15px; border-radius: 8px; }
+        iframe { width: 100%; height: 600px; border: none; }
+        .download-link { color: blue; text-decoration: underline; display: block; margin-top: 10px; }
     </style>
-</head>
-<body class="min-h-screen p-4 sm:p-6">
-
-    <!-- ترويسة الموقع العلوي -->
-    <div class="max-w-4xl mx-auto text-center mb-6">
-        <h1 class="text-2xl sm:text-3xl font-black text-amber-400 mb-1">🎓 مساعد الشهادة السودانية</h1>
-        <p class="text-slate-300 text-sm">المكتبة الرقمية الشاملة للطلاب</p>
-    </div>
-
-    <!-- شريط الرجوع -->
-    <div class="max-w-4xl mx-auto mb-4 flex justify-between items-center">
-        <a href="index.html" class="bg-blue-900 hover:bg-blue-800 text-amber-400 px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 border border-blue-700">
-            <i class="fa-solid fa-arrow-right"></i> العودة لقائمة المواد
-        </a>
-    </div>
-
-    <!-- محتوى الدرس التفاعلي الشامل (ديناميكي من قاعدة البيانات) -->
-    <div class="max-w-4xl mx-auto space-y-6 font-cairo">
-
-        <!-- ترويسة المادة -->
-        <div class="bg-blue-600 border border-blue-500 rounded-2xl p-6 text-center shadow-xl">
-            <div class="w-12 h-12 mx-auto mb-2 text-white flex items-center justify-center text-2xl">
-                <i class="fa-solid fa-triangle-ruler"></i>
-            </div>
-            <h2 class="text-2xl sm:text-3xl font-black text-white mb-1">الرياضيات المتخصصة</h2>
-            <p class="text-blue-100 font-bold text-sm">الخلاصة الشاملة - قوانين، خطوات، وأمثلة أساسية</p>
-        </div>
-
-        <!-- أزرار التنقل السريعة -->
-        <div class="grid grid-cols-3 gap-2 bg-slate-900/80 p-2 rounded-xl border border-blue-900 text-center font-bold text-xs sm:text-sm">
-            <a href="index.html" class="bg-blue-900/60 py-2 rounded-lg text-slate-200">📖 الكتب</a>
-            <a href="#" class="bg-blue-900/60 py-2 rounded-lg text-slate-200">📝 امتحانات</a>
-            <a href="#" class="bg-blue-600 text-amber-300 py-2 rounded-lg shadow">⚡ الدروس التفاعلية</a>
-        </div>
-
-        <!-- منطقة عرض الدروس المسحوبة من Supabase تلقائياً -->
-        <div id="lessons-container" class="space-y-6">
-            <div class="text-center py-10 text-slate-400">
-                <i class="fa-solid fa-spinner fa-spin text-2xl mb-2 text-amber-400"></i>
-                <p>جاري تحميل الدروس والقوانين من قاعدة البيانات...</p>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- كود الجافاسكريبت للاتصال بـ Supabase وجلب البيانات ديناميكياً -->
-    <script>
-        // ضع هنا بيانات الاتصال الخاصة بمشروعك في Supabase
-        const SUPABASE_URL = 'https://YOUR_SUPABASE_PROJECT_ID.supabase.co'; 
-        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
-        
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        async function fetchLessons() {
-            const container = document.getElementById('lessons-container');
-            
-            try {
-                // جلب البيانات من جدول lessons
-                const { data, error } = await supabaseClient
-                    .from('lessons')
-                    .select('*');
-
-                if (error) throw error;
-
-                if (!data || data.length === 0) {
-                    container.innerHTML = '<div class="text-center py-8 text-slate-400 bg-slate-900/90 rounded-2xl border border-blue-900">لا توجد دروس مضافة حالياً في قاعدة البيانات.</div>';
-                    return;
-                }
-
-                // تفريغ الحاوية وبناء العناصر بناءً على بيانات جدول Supabase
-                container.innerHTML = '';
-                
-                data.forEach((lesson, index) => {
-                    container.innerHTML += `
-                        <section class="bg-slate-900/90 border border-blue-900 rounded-2xl p-5 shadow-lg">
-                            <h2 class="text-xl font-black text-amber-400 mb-4 border-b border-blue-800 pb-2 flex items-center gap-2">
-                                <i class="fa-solid fa-book-open"></i> ${lesson.subject_id || 'درس تفاعلي ' + (index + 1)}
-                            </h2>
-                            <div class="space-y-4 font-bold text-slate-200 text-sm sm:text-base">
-                                <div class="bg-blue-950/60 p-4 rounded-xl border border-blue-800">
-                                    <p class="text-slate-300">${lesson.content || 'محتوى الدرس قيد التحديث...'}</p>
-                                </div>
-                            </div>
-                        </section>
-                    `;
-                });
-
-            } catch (err) {
-                console.error('خطأ في جلب البيانات:', err);
-                container.innerHTML = '<div class="text-center py-8 text-red-400 bg-slate-900/90 rounded-2xl border border-blue-900">حدث خطأ أثناء تحميل الدروس. تأكد من إعدادات الاتصال.</div>';
-            }
-        }
-
-        // تشغيل الدالة عند تحميل الصفحة
-        fetchLessons();
-    </script>
-</body>
+ </head>
+ <body>
+  <h1>الدروس التفاعلية</h1>
+  <p>أهلاً بك في صفحة الدروس، يمكنك عرض الدروس المرفوعة أدناه:</p>
+  <!-- درس الرياضيات -->
+  <div class="lesson-container">
+   <h3>درس الرياضيات</h3>
+   <iframe src="https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/math.pdf" title="Math PDF"></iframe>
+   <br>
+   <a href="https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/math.pdf" target="_blank" class="download-link">تحميل أو فتح الملف في نافذة جديدة</a>
+  </div>
+ </body>
 </html>
