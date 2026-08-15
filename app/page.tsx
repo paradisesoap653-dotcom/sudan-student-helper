@@ -9,7 +9,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
       {
         title: "الكتاب المدرسي - الرياضيات المتخصصة",
         size: "PDF",
-        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/math.pdf.pdf",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/math.pdf",
       },
     ],
     exams: [],
