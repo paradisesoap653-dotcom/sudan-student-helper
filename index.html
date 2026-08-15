@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الكتاب الكامل للرياضيات المتخصصة - الصف الثالث ثانوي</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Google Fonts: Cairo & Amiri -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            navy: '#0b2246',
+                            blue: '#133a75',
+                            gold: '#d4af37',
+                            darkGold: '#b89228',
+                            lightBg: '#f8fafc',
+                            cardBg: '#ffffff',
+                            accent: '#1e3a8a'
+                        }
+                    },
+                    fontFamily: {
+                        cairo: ['Cairo', 'sans-serif'],
+                        amiri: ['Amiri', 'serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            font-size: var(--base-font-size, 19px);
+            line-height: 2.0;
+            font-weight: 600;
+        }
+        .math-symbol {
+            font-family: 'Amiri', serif;
+            font-weight: 700;
+            color: #0b2246;
+            direction: ltr;
+            display: inline-block;
+            padding: 0 4px;
+        }
+        .formula-box {
+            background: #f0f7ff;
+            border-right: 8px solid #133a75;
+            border-left: 1px solid #cbd5e1;
+            border-top: 1px solid #cbd5e1;
+            border-bottom: 1px solid #cbd5e1;
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            margin: 1.5rem 0;
+            font-weight: 700;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+        .example-card {
+            background: #fffdf5;
+            border: 2px solid #f3e8c8;
+            border-right: 8px solid #d4af37;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.75rem 0;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+        }
+        .example-title {
+            font-weight: 900;
+            color: #856404;
+            margin-bottom: 0.75rem;
+            font-size: 1.25em;
+        }
+        .exercise-card {
+            background: #fafafa;
+            border: 2px dashed #94a3b8;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1.75rem 0;
+        }
+        .rule-badge {
+            background-color: #133a75;
+            color: #ffffff;
+            padding: 2px 10px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            font-weight: 800;
+        }
+        @media print {
+            .no-print { display: none !important; }
+            body { font-size: 14pt; background: white; color: black; }
+            .page-break { page-break-before: always; }
+            .container { width: 100% !important; max-width: none !important; padding: 0 !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+
+    <!-- Top Floating Toolbar -->
+    <header class="no-print sticky top-0 z-50 bg-brand-navy text-white shadow-xl border-b-2 border-brand-gold">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <span class="text-brand-gold font-black text-xl flex items-center gap-2">
+                    <i class="fa-solid fa-book-open-reader"></i>
+                    الرياضيات المتخصصة كاملة
+                </span>
+                <span class="bg-blue-900 text-blue-200 text-xs px-3 py-1 rounded-full font-black">الصف الثالث ثانوي</span>
+            </div>
+
+            <!-- Font Size Controls & Tools -->
+            <div class="flex items-center gap-3">
+                <div class="bg-blue-950/90 rounded-lg p-1.5 flex items-center border border-blue-800">
+                    <span class="text-xs text-slate-300 px-2 font-bold hidden sm:inline">حجم الخط:</span>
+                    <button onclick="changeFontSize(2)" class="px-3 py-1 bg-brand-gold hover:bg-amber-500 text-slate-900 font-extrabold rounded text-sm transition" title="تكبير الخط">
+                        <i class="fa-solid fa-plus"></i> تكبير
+                    </button>
+                    <button onclick="resetFontSize()" class="px-2.5 py-1 hover:bg-blue-800 text-white font-bold rounded text-xs transition mx-1">
+                        افتراضي
+                    </button>
+                    <button onclick="changeFontSize(-2)" class="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-white font-extrabold rounded text-sm transition" title="تصغير الخط">
+                        <i class="fa-solid fa-minus"></i> تصغير
+                    </button>
+                </div>
+
+                <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 transition shadow">
+                    <i class="fa-solid fa-print"></i>
+                    <span class="hidden md:inline">طباعة / حفظ PDF</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main id="content-container" class="max-w-5xl mx-auto my-6 px-3 sm:px-6">
+
+        <!-- HEADER BANNER -->
+        <div class="rounded-2xl overflow-hidden bg-white shadow-2xl mb-8 border-4 border-brand-gold">
+            <div class="bg-gradient-to-r from-blue-950 via-brand-navy to-blue-950 p-6 sm:p-10 text-center text-white relative">
+                <div class="inline-block bg-amber-500/20 border border-amber-400/40 text-amber-300 px-4 py-1.5 rounded-full font-extrabold text-sm mb-3">
+                    <i class="fa-solid fa-graduation-cap ml-1"></i> إهداء من شبكة رواد التميز السودانية
+                </div>
+                
+                <h1 class="text-3xl sm:text-5xl font-black text-amber-400 mb-3 tracking-wide leading-tight">
+                    الرياضيات المتخصصة
+                </h1>
+                <h2 class="text-xl sm:text-2xl font-extrabold text-slate-200">
+                    الصف الثالث ثانوي — [ الكتاب الأول ]
+                </h2>
+            </div>
+        </div>
+
+        <!-- منطقة عرض الدروس القادمة من Supabase الديناميكية -->
+        <div id="dynamic-lessons-container">
+            <!-- سيتم حقن الدروس هنا تلقائياً من قاعدة البيانات -->
+            <div class="text-center py-8 text-slate-600 font-bold">
+                <i class="fa-solid fa-spinner fa-spin text-2xl text-brand-gold mb-2"></i>
+                <p>جاري تحميل الدروس من قاعدة البيانات...</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Supabase Integration & Logic Script -->
+    <script>
+        // إعدادات الاتصال بـ Supabase الخاصة بمشروعك
+        const SUPABASE_URL = 'https://lhxebcykgdyxehcyohzk.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxoeGViY3lrZ2R5eGVoY3lvaHprIiwicm9sZSI6ImFub24iLCJpYXQiOjM0ODcwMjAyM30...'; // (استبدلها بالـ Anon Key الخاص بمشروعك إذا لزم، أو يعمل عبر الاتصال المباشر)
+
+        const { createClient } = supabase;
+        const _supabase = createClient(SUPABASE_URL, 'ضع مفتاح الـ Anon Key هنا');
+
+        async function loadLessonsFromSupabase() {
+            try {
+                const { data, error } = await _supabase
+                    .from('lessons')
+                    .select('*');
+
+                const container = document.getElementById('dynamic-lessons-container');
+
+                if (error) {
+                    console.error('خطأ في جلب البيانات:', error);
+                    container.innerHTML = '<p class="text-center text-red-600 font-bold">عذراً، حدث خطأ أثناء تحميل الدروس.</p>';
+                    return;
+                }
+
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p class="text-center text-slate-600 font-bold">لا توجد دروس مضافة حالياً.</p>';
+                    return;
+                }
+
+                // تجميع وعرض الدروس ديناميكياً
+                let htmlContent = '';
+                data.forEach(lesson => {
+                    htmlContent += `
+                        <section class="bg-white rounded-xl shadow-lg p-6 sm:p-8 mb-8 border border-slate-200">
+                            <div class="bg-brand-navy text-white p-5 rounded-lg mb-6 flex items-center justify-between">
+                                <div>
+                                    <span class="text-brand-gold text-sm font-black tracking-wider">${lesson.unit_title}</span>
+                                    <h2 class="text-2xl sm:text-3xl font-black">${lesson.lesson_title}</h2>
+                                </div>
+                                <i class="fa-solid fa-square-root-variable text-4xl text-amber-400"></i>
+                            </div>
+                            <div class="lesson-body">
+                                ${lesson.content}
+                            </div>
+                        </section>
+                    `;
+                });
+
+                container.innerHTML = htmlContent;
+
+            } catch (err) {
+                console.error('فشل الاتصال:', err);
+            }
+        }
+
+        // تشغيل الدالة عند تحميل الصفحة
+        document.addEventListener('DOMContentLoaded', loadLessonsFromSupabase);
+
+        // تحكم بحجم الخط
+        let currentFontSize = 19;
+        function changeFontSize(delta) {
+            currentFontSize += delta;
+            if (currentFontSize < 14) currentFontSize = 14;
+            if (currentFontSize > 32) currentFontSize = 32;
+            document.body.style.fontSize = currentFontSize + 'px';
+        }
+
+        function resetFontSize() {
+            currentFontSize = 19;
+            document.body.style.fontSize = currentFontSize + 'px';
+        }
+    </script>
+</body>
+</html>
