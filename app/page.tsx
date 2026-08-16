@@ -20,7 +20,16 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     exams: [],
   },
   physics: { books: [], exams: [] },
-  chemistry: { books: [], exams: [] },
+  chemistry: {
+    books: [
+      {
+        title: "الكتاب المدرسي - الكيمياء",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/chemistry.pdf",
+      },
+    ],
+    exams: [],
+  },
   biology: { books: [], exams: [] },
   arabic: { books: [], exams: [] },
   english: { books: [], exams: [] },
@@ -242,4 +251,4 @@ export default function Home() {
       </div>
     </div>
   );
-             }
+              }
