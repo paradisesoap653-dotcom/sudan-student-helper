@@ -19,7 +19,31 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
-  physics: { books: [], exams: [] },
+  physics: {
+    books: [
+      {
+        title: "الكتاب المدرسي - الفيزياء (الجزء الأول)",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Physic1.pdf",
+      },
+      {
+        title: "الكتاب المدرسي - الفيزياء (الجزء الثاني)",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Physic2.pdf",
+      },
+      {
+        title: "الكتاب المدرسي - الفيزياء (الجزء الثالث)",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Physic3.pdf",
+      },
+      {
+        title: "الكتاب المدرسي - الفيزياء (الجزء الرابع)",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Physic4.pdf",
+      },
+    ],
+    exams: [],
+  },
   chemistry: {
     books: [
       {
@@ -251,4 +275,4 @@ export default function Home() {
       </div>
     </div>
   );
-              }
+}
