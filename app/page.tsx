@@ -94,8 +94,17 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+  english: {
+    books: [
+      {
+        title: "الكتاب المدرسي - اللغة الإنجليزية",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/eng.pdf",
+      },
+    ],
+    exams: [],
+  },
   islamic: { books: [], exams: [] },
-  english: { books: [], exams: [] },
   history: { books: [], exams: [] },
   geography: { books: [], exams: [] },
 };
