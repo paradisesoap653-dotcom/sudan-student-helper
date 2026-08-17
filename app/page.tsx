@@ -64,11 +64,40 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
-  arabic: { books: [], exams: [] },
+  arabic: {
+    books: [
+      {
+        title: "الكتاب المدرسي - اللغة العربية",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Arab.pdf",
+      },
+      {
+        title: "الكتاب المدرسي - المطالعة والأدب",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/adab.pdf",
+      },
+      {
+        title: "الكتاب المدرسي - البلاغة والتعبير",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/blaga.pdf",
+      },
+      {
+        title: "الكتاب المدرسي - القواعد والنحو",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/gwaid.pdf",
+      },
+      {
+        title: "الكتاب المدرسي - الدراسات اللغوية",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/drasat.pdf",
+      },
+    ],
+    exams: [],
+  },
+  islamic: { books: [], exams: [] },
   english: { books: [], exams: [] },
   history: { books: [], exams: [] },
   geography: { books: [], exams: [] },
-  islamic: { books: [], exams: [] },
 };
 
 const SUBJECTS = {
@@ -284,4 +313,4 @@ export default function Home() {
       </div>
     </div>
   );
-            }
+}
