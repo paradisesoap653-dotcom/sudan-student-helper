@@ -94,10 +94,38 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
-  islamic: { books: [], exams: [] },
+  islamic: {
+    books: [
+      {
+        title: "الكتاب المدرسي - التربية الإسلامية",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/%20eslam1.pdf",
+      },
+    ],
+    exams: [],
+  },
   english: { books: [], exams: [] },
-  history: { books: [], exams: [] },
+  history: {
+    books: [
+      {
+        title: "الكتاب المدرسي - التاريخ",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/tarkh.pdf",
+      },
+    ],
+    exams: [],
+  },
   geography: { books: [], exams: [] },
+  engineering: {
+    books: [
+      {
+        title: "الكتاب المدرسي - العلوم الهندسية",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Engin.pdf",
+      },
+    ],
+    exams: [],
+  },
 };
 
 const SUBJECTS = {
@@ -108,6 +136,7 @@ const SUBJECTS = {
     { id: "biology", name: "الأحياء", icon: "🧬", color: "#e11d48" },
     { id: "arabic", name: "اللغة العربية", icon: "📖", color: "#d97706" },
     { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "#0891b2" },
+    { id: "engineering", name: "العلوم الهندسية", icon: "⚙️", color: "#475569" },
   ],
   literary: [
     { id: "history", name: "التاريخ", icon: "📜", color: "#b45309" },
@@ -313,4 +342,4 @@ export default function Home() {
       </div>
     </div>
   );
-                        }
+                  }
