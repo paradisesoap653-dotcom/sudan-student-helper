@@ -4,14 +4,14 @@ import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 
 /* =========================================================
-   صورة الواجهة الرئيسية
+   صورة الواجهة الرئيسية - Supabase
 ========================================================= */
 
 const HOME_COVER =
   "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Banner.jpg";
 
 /* =========================================================
-   قاعدة المحتوى
+   أنواع البيانات
 ========================================================= */
 
 type FileItem = {
@@ -24,6 +24,27 @@ type ContentItem = {
   books: FileItem[];
   exams: FileItem[];
 };
+
+type Lesson = {
+  id: string | number;
+  subject_id: string;
+  unit_title: string;
+  lesson_title: string;
+  content: string;
+};
+
+type Subject = {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+};
+
+type Track = "scientific" | "literary" | "vocational";
+
+/* =========================================================
+   قاعدة المحتوى
+========================================================= */
 
 const CONTENT_DATABASE: Record<string, ContentItem> = {
   math: {
@@ -268,15 +289,6 @@ const CONTENT_DATABASE: Record<string, ContentItem> = {
    المواد حسب المسار
 ========================================================= */
 
-type Track = "scientific" | "literary" | "vocational";
-
-type Subject = {
-  id: string;
-  name: string;
-  icon: string;
-  color: string;
-};
-
 const SUBJECTS: Record<Track, Subject[]> = {
   scientific: [
     {
@@ -436,49 +448,63 @@ export default function Home() {
 
   const [tab, setTab] = useState<"books" | "exams" | "lessons">("books");
 
-  const [lessons, setLessons] = useState<any[]>([]);
+  const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loadingLessons, setLoadingLessons] = useState(false);
-  const [selectedLesson, setSelectedLesson] = useState<any>(null);
+  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
 
-  const currentFiles: FileItem[] =
+  /* =======================================================
+     الملفات الحالية
+  ======================================================= */
+
+  const currentFiles =
     subject && tab !== "lessons"
       ? CONTENT_DATABASE[subject.id]?.[tab] || []
       : [];
 
-  /* =========================================================
+  /* =======================================================
      تحميل الدروس من Supabase
-  ========================================================= */
+  ======================================================= */
 
   useEffect(() => {
     if (tab !== "lessons" || !subject) {
       return;
     }
 
-    let mounted = true;
+    let cancelled = false;
 
-    setLoadingLessons(true);
-    setSelectedLesson(null);
+    const loadLessons = async () => {
+      setLoadingLessons(true);
+      setSelectedLesson(null);
 
-    supabase
-      .from("lessons")
-      .select("*")
-      .eq("subject_id", subject.id)
-      .then(({ data, error }) => {
-        if (!mounted) return;
+      const { data, error } = await supabase
+        .from("lessons")
+        .select("*")
+        .eq("subject_id", subject.id);
 
-        if (!error && data) {
-          setLessons(data);
-        } else {
-          setLessons([]);
-        }
+      if (cancelled) {
+        return;
+      }
 
-        setLoadingLessons(false);
-      });
+      if (error) {
+        console.error("Error loading lessons:", error);
+        setLessons([]);
+      } else {
+        setLessons((data as Lesson[]) || []);
+      }
+
+      setLoadingLessons(false);
+    };
+
+    loadLessons();
 
     return () => {
-      mounted = false;
+      cancelled = true;
     };
   }, [tab, subject]);
+
+  /* =======================================================
+     أسماء المسارات
+  ======================================================= */
 
   const trackLabels: Record<Track, string> = {
     scientific: "العلمي",
@@ -486,151 +512,155 @@ export default function Home() {
     vocational: "المهني",
   };
 
-  /* =========================================================
+  /* =======================================================
      العودة للرئيسية
-  ========================================================= */
+  ======================================================= */
 
   const goHome = () => {
     setTrack(null);
     setSubject(null);
     setTab("books");
-    setSelectedLesson(null);
     setLessons([]);
+    setSelectedLesson(null);
   };
 
-  /* =========================================================
-     العودة لقائمة المواد
-  ========================================================= */
-
-  const goToSubjects = () => {
-    setSubject(null);
-    setTab("books");
-    setSelectedLesson(null);
-    setLessons([]);
-  };
+  /* =======================================================
+     الواجهة
+  ======================================================= */
 
   return (
     <main
       dir="rtl"
       style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #0f172a 0%, #111827 50%, #0f172a 100%)",
+        minHeight: "100dvh",
+        backgroundColor: "#0f172a",
         color: "#f8fafc",
         fontFamily: "Arial, sans-serif",
-        padding: "16px",
-        boxSizing: "border-box",
+        margin: 0,
+        padding: 0,
       }}
     >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "700px",
-          margin: "0 auto",
-        }}
-      >
-        {/* =====================================================
-            الواجهة الرئيسية - الصورة والأزرار
-        ===================================================== */}
+      {/* ===================================================
+          الشاشة الرئيسية
+      =================================================== */}
 
-        {!track && (
+      {!track && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            width: "100vw",
+            height: "100dvh",
+            overflow: "hidden",
+            backgroundColor: "#0f172a",
+            zIndex: 10,
+          }}
+        >
+          <img
+            src={HOME_COVER}
+            alt="مساعد الشهادة الثانوية السودانية"
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "block",
+              objectFit: "cover",
+              objectPosition: "center center",
+            }}
+          />
+
+          {/* =================================================
+              زر المسار العلمي
+          ================================================= */}
+
+          <button
+            type="button"
+            onClick={() => setTrack("scientific")}
+            aria-label="المسار العلمي"
+            style={{
+              position: "absolute",
+              top: "58%",
+              right: "4%",
+              width: "92%",
+              height: "13%",
+              padding: 0,
+              margin: 0,
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              cursor: "pointer",
+              WebkitTapHighlightColor: "transparent",
+            }}
+          />
+
+          {/* =================================================
+              زر المسار الأدبي
+          ================================================= */}
+
+          <button
+            type="button"
+            onClick={() => setTrack("literary")}
+            aria-label="المسار الأدبي"
+            style={{
+              position: "absolute",
+              top: "70%",
+              right: "4%",
+              width: "92%",
+              height: "12%",
+              padding: 0,
+              margin: 0,
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              cursor: "pointer",
+              WebkitTapHighlightColor: "transparent",
+            }}
+          />
+
+          {/* =================================================
+              زر المسار المهني
+          ================================================= */}
+
+          <button
+            type="button"
+            onClick={() => setTrack("vocational")}
+            aria-label="المسار المهني"
+            style={{
+              position: "absolute",
+              top: "81%",
+              right: "4%",
+              width: "92%",
+              height: "18%",
+              padding: 0,
+              margin: 0,
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              cursor: "pointer",
+              WebkitTapHighlightColor: "transparent",
+            }}
+          />
+        </div>
+      )}
+
+      {/* ===================================================
+          اختيار المادة
+      =================================================== */}
+
+      {track && !subject && (
+        <div
+          style={{
+            minHeight: "100dvh",
+            padding: "20px 16px",
+            boxSizing: "border-box",
+          }}
+        >
           <div
             style={{
-              position: "relative",
               width: "100%",
-              overflow: "hidden",
-              borderRadius: "18px",
-              boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
-              backgroundColor: "#fff",
+              maxWidth: "700px",
+              margin: "0 auto",
             }}
           >
-            <img
-              src={HOME_COVER}
-              alt="مساعد الشهادة الثانوية السودانية"
-              style={{
-                display: "block",
-                width: "100%",
-                height: "auto",
-              }}
-            />
-
-            {/* =================================================
-                المسار العلمي
-            ================================================= */}
-
-            <button
-              type="button"
-              onClick={() => setTrack("scientific")}
-              aria-label="المسار العلمي"
-              style={{
-                position: "absolute",
-                top: "58.5%",
-                right: "20%",
-                width: "80%",
-                height: "12.5%",
-                padding: 0,
-                margin: 0,
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                WebkitTapHighlightColor: "transparent",
-              }}
-            />
-
-            {/* =================================================
-                المسار الأدبي
-            ================================================= */}
-
-            <button
-              type="button"
-              onClick={() => setTrack("literary")}
-              aria-label="المسار الأدبي"
-              style={{
-                position: "absolute",
-                top: "70.5%",
-                right: "20%",
-                width: "80%",
-                height: "11%",
-                padding: 0,
-                margin: 0,
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                WebkitTapHighlightColor: "transparent",
-              }}
-            />
-
-            {/* =================================================
-                المسار المهني
-            ================================================= */}
-
-            <button
-              type="button"
-              onClick={() => setTrack("vocational")}
-              aria-label="المسار المهني"
-              style={{
-                position: "absolute",
-                top: "81%",
-                right: "20%",
-                width: "80%",
-                height: "18%",
-                padding: 0,
-                margin: 0,
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                WebkitTapHighlightColor: "transparent",
-              }}
-            />
-          </div>
-        )}
-
-        {/* =====================================================
-            اختيار المادة
-        ===================================================== */}
-
-        {track && !subject && (
-          <section>
             <button
               type="button"
               onClick={goHome}
@@ -639,7 +669,7 @@ export default function Home() {
                 border: "none",
                 color: "#38bdf8",
                 cursor: "pointer",
-                marginBottom: "12px",
+                marginBottom: "16px",
                 fontSize: "14px",
                 padding: "8px 0",
               }}
@@ -647,20 +677,47 @@ export default function Home() {
               ➡️ العودة للرئيسية
             </button>
 
-            <h2
+            <div
               style={{
-                fontSize: "22px",
-                margin: "8px 0 18px",
                 textAlign: "center",
+                marginBottom: "20px",
               }}
             >
-              مواد المسار {trackLabels[track]}
-            </h2>
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "#94a3b8",
+                  marginBottom: "5px",
+                }}
+              >
+                المسار الدراسي
+              </div>
+
+              <h2
+                style={{
+                  fontSize: "24px",
+                  margin: 0,
+                  color: "#fbbf24",
+                }}
+              >
+                {trackLabels[track]}
+              </h2>
+
+              <p
+                style={{
+                  margin: "8px 0 0",
+                  color: "#cbd5e1",
+                  fontSize: "14px",
+                }}
+              >
+                اختر المادة التي تريدها
+              </p>
+            </div>
 
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gridTemplateColumns: "1fr 1fr",
                 gap: "10px",
               }}
             >
@@ -674,22 +731,21 @@ export default function Home() {
                     setSelectedLesson(null);
                   }}
                   style={{
-                    padding: "16px 10px",
-                    borderRadius: "12px",
-                    background:
-                      "linear-gradient(145deg, #1e293b, #172033)",
+                    padding: "18px 10px",
+                    minHeight: "115px",
+                    borderRadius: "14px",
+                    backgroundColor: "#1e293b",
                     border: "1px solid #334155",
                     color: "#fff",
                     cursor: "pointer",
                     textAlign: "center",
                     boxShadow: "0 5px 15px rgba(0,0,0,0.15)",
-                    WebkitTapHighlightColor: "transparent",
                   }}
                 >
                   <div
                     style={{
-                      fontSize: "30px",
-                      lineHeight: 1.2,
+                      fontSize: "32px",
+                      marginBottom: "8px",
                     }}
                   >
                     {item.icon}
@@ -698,7 +754,6 @@ export default function Home() {
                   <div
                     style={{
                       fontWeight: "bold",
-                      marginTop: "9px",
                       fontSize: "14px",
                       lineHeight: 1.5,
                     }}
@@ -708,24 +763,44 @@ export default function Home() {
                 </button>
               ))}
             </div>
-          </section>
-        )}
+          </div>
+        </div>
+      )}
 
-        {/* =====================================================
-            صفحة المادة
-        ===================================================== */}
+      {/* ===================================================
+          صفحة المادة
+      =================================================== */}
 
-        {subject && (
-          <section>
+      {subject && (
+        <div
+          style={{
+            minHeight: "100dvh",
+            padding: "20px 16px 40px",
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "700px",
+              margin: "0 auto",
+            }}
+          >
+            {/* العودة */}
             <button
               type="button"
-              onClick={goToSubjects}
+              onClick={() => {
+                setSubject(null);
+                setTab("books");
+                setLessons([]);
+                setSelectedLesson(null);
+              }}
               style={{
                 background: "none",
                 border: "none",
                 color: "#38bdf8",
                 cursor: "pointer",
-                marginBottom: "12px",
+                marginBottom: "14px",
                 fontSize: "14px",
                 padding: "8px 0",
               }}
@@ -734,11 +809,10 @@ export default function Home() {
             </button>
 
             {/* عنوان المادة */}
-
             <div
               style={{
-                padding: "18px",
-                borderRadius: "14px",
+                padding: "20px 16px",
+                borderRadius: "16px",
                 backgroundColor: subject.color,
                 color: "#fff",
                 textAlign: "center",
@@ -746,26 +820,28 @@ export default function Home() {
                 boxShadow: "0 8px 25px rgba(0,0,0,0.25)",
               }}
             >
-              <span
+              <div
                 style={{
-                  fontSize: "40px",
-                  display: "block",
+                  fontSize: "42px",
+                  lineHeight: 1,
                 }}
               >
                 {subject.icon}
-              </span>
+              </div>
 
               <h2
                 style={{
-                  margin: "8px 0 0",
-                  fontSize: "21px",
+                  margin: "10px 0 0",
+                  fontSize: "22px",
                 }}
               >
                 {subject.name}
               </h2>
             </div>
 
-            {/* التبويبات */}
+            {/* =================================================
+                التبويبات
+            ================================================= */}
 
             <div
               style={{
@@ -785,7 +861,7 @@ export default function Home() {
                 }}
                 style={{
                   flex: 1,
-                  padding: "10px 5px",
+                  padding: "10px 4px",
                   border: "none",
                   borderRadius: "7px",
                   backgroundColor:
@@ -807,7 +883,7 @@ export default function Home() {
                 }}
                 style={{
                   flex: 1,
-                  padding: "10px 5px",
+                  padding: "10px 4px",
                   border: "none",
                   borderRadius: "7px",
                   backgroundColor:
@@ -818,7 +894,7 @@ export default function Home() {
                   fontSize: "12px",
                 }}
               >
-                📝 امتحانات
+                📝 الامتحانات
               </button>
 
               <button
@@ -829,7 +905,7 @@ export default function Home() {
                 }}
                 style={{
                   flex: 1,
-                  padding: "10px 5px",
+                  padding: "10px 4px",
                   border: "none",
                   borderRadius: "7px",
                   backgroundColor:
@@ -861,14 +937,14 @@ export default function Home() {
                     <div
                       key={`${file.title}-${idx}`}
                       style={{
-                        padding: "13px",
-                        borderRadius: "10px",
+                        padding: "14px",
+                        borderRadius: "11px",
                         backgroundColor: "#1e293b",
+                        border: "1px solid #334155",
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
                         gap: "10px",
-                        border: "1px solid #26354a",
                       }}
                     >
                       <div
@@ -881,7 +957,7 @@ export default function Home() {
                           style={{
                             fontWeight: "bold",
                             fontSize: "14px",
-                            lineHeight: 1.5,
+                            lineHeight: 1.6,
                           }}
                         >
                           {file.title}
@@ -891,7 +967,7 @@ export default function Home() {
                           style={{
                             fontSize: "11px",
                             color: "#94a3b8",
-                            marginTop: "3px",
+                            marginTop: "4px",
                           }}
                         >
                           {file.size}
@@ -904,7 +980,7 @@ export default function Home() {
                         rel="noopener noreferrer"
                         style={{
                           flexShrink: 0,
-                          padding: "8px 13px",
+                          padding: "8px 14px",
                           backgroundColor: "#22c55e",
                           textDecoration: "none",
                           color: "#fff",
@@ -922,9 +998,9 @@ export default function Home() {
                     style={{
                       textAlign: "center",
                       color: "#94a3b8",
-                      padding: "30px 10px",
+                      padding: "35px 10px",
                       backgroundColor: "#1e293b",
-                      borderRadius: "10px",
+                      borderRadius: "12px",
                     }}
                   >
                     لا توجد ملفات مرفوعة حالياً لهذه المادة.
@@ -950,6 +1026,7 @@ export default function Home() {
                         color: "#38bdf8",
                         cursor: "pointer",
                         marginBottom: "12px",
+                        fontSize: "14px",
                         padding: "8px 0",
                       }}
                     >
@@ -959,16 +1036,27 @@ export default function Home() {
                     <div
                       style={{
                         backgroundColor: "#1e293b",
-                        borderRadius: "10px",
-                        padding: "16px",
+                        borderRadius: "12px",
+                        padding: "18px",
                         border: "1px solid #334155",
                       }}
                     >
-                      <h3
+                      <div
                         style={{
                           color: "#fbbf24",
-                          marginTop: 0,
-                          lineHeight: 1.6,
+                          fontSize: "12px",
+                          marginBottom: "8px",
+                        }}
+                      >
+                        {selectedLesson.unit_title}
+                      </div>
+
+                      <h3
+                        style={{
+                          color: "#fff",
+                          margin: "0 0 16px",
+                          fontSize: "20px",
+                          lineHeight: 1.5,
                         }}
                       >
                         {selectedLesson.lesson_title}
@@ -978,9 +1066,10 @@ export default function Home() {
                         style={{
                           color: "#e2e8f0",
                           lineHeight: 1.9,
+                          fontSize: "15px",
                         }}
                         dangerouslySetInnerHTML={{
-                          __html: selectedLesson.content || "",
+                          __html: selectedLesson.content,
                         }}
                       />
                     </div>
@@ -990,9 +1079,18 @@ export default function Home() {
                     style={{
                       textAlign: "center",
                       color: "#94a3b8",
-                      padding: "30px 0",
+                      padding: "40px 0",
                     }}
                   >
+                    <div
+                      style={{
+                        fontSize: "30px",
+                        marginBottom: "10px",
+                      }}
+                    >
+                      ⏳
+                    </div>
+
                     جاري تحميل الدروس...
                   </div>
                 ) : lessons.length > 0 ? (
@@ -1009,8 +1107,8 @@ export default function Home() {
                         key={lesson.id}
                         onClick={() => setSelectedLesson(lesson)}
                         style={{
-                          padding: "14px",
-                          borderRadius: "9px",
+                          padding: "15px",
+                          borderRadius: "10px",
                           backgroundColor: "#1e293b",
                           border: "1px solid #334155",
                           color: "#fff",
@@ -1022,7 +1120,7 @@ export default function Home() {
                           style={{
                             fontSize: "12px",
                             color: "#fbbf24",
-                            marginBottom: "4px",
+                            marginBottom: "5px",
                           }}
                         >
                           {lesson.unit_title}
@@ -1032,7 +1130,7 @@ export default function Home() {
                           style={{
                             fontWeight: "bold",
                             fontSize: "14px",
-                            lineHeight: 1.5,
+                            lineHeight: 1.6,
                           }}
                         >
                           {lesson.lesson_title}
@@ -1045,9 +1143,9 @@ export default function Home() {
                     style={{
                       textAlign: "center",
                       color: "#94a3b8",
-                      padding: "30px 10px",
+                      padding: "35px 10px",
                       backgroundColor: "#1e293b",
-                      borderRadius: "10px",
+                      borderRadius: "12px",
                     }}
                   >
                     لا توجد دروس تفاعلية مضافة حالياً لهذه المادة.
@@ -1055,9 +1153,9 @@ export default function Home() {
                 )}
               </div>
             )}
-          </section>
-        )}
-      </div>
+          </div>
+        </div>
+      )}
     </main>
   );
-         }
+       }
