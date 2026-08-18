@@ -1,9 +1,23 @@
 import type { Metadata } from "next";
-import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "مساعد الشهادة السودانية",
-  description: "مكتبة رقمية شاملة لطلاب الشهادة السودانية",
+  title: "مساعد الشهادة الثانوية السودانية",
+  description: "المكتبة الرقمية الشاملة لطلاب الشهادة الثانوية السودانية",
+
+  manifest: "/manifest.webmanifest",
+
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/icon-192.png",
+  },
+
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "مساعد الشهادة",
+  },
+
+  themeColor: "#0f172a",
 };
 
 export default function RootLayout({
