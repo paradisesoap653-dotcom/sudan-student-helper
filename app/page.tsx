@@ -1,7 +1,12 @@
+```tsx
 "use client";
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
+
+/* =========================================================
+   قاعدة المحتوى
+========================================================= */
 
 const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
   math: {
@@ -19,6 +24,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   mathBasic: {
     books: [
       {
@@ -29,6 +35,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   physics: {
     books: [
       {
@@ -54,6 +61,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   chemistry: {
     books: [
       {
@@ -64,6 +72,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   biology: {
     books: [
       {
@@ -74,6 +83,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   arabic: {
     books: [
       {
@@ -104,6 +114,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   islamic: {
     books: [
       {
@@ -119,7 +130,12 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
-  english: { books: [], exams: [] },
+
+  english: {
+    books: [],
+    exams: [],
+  },
+
   french: {
     books: [
       {
@@ -130,6 +146,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   history: {
     books: [
       {
@@ -140,6 +157,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   geography: {
     books: [
       {
@@ -150,6 +168,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   engineering: {
     books: [
       {
@@ -160,6 +179,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   commercial: {
     books: [
       {
@@ -170,6 +190,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   agricultural: {
     books: [
       {
@@ -180,6 +201,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   military: {
     books: [
       {
@@ -190,6 +212,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   computer: {
     books: [
       {
@@ -200,6 +223,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   family: {
     books: [
       {
@@ -210,6 +234,7 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+
   art: {
     books: [
       {
@@ -221,6 +246,10 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     exams: [],
   },
 };
+
+/* =========================================================
+   المواد حسب المسار
+========================================================= */
 
 const SUBJECTS = {
   scientific: [
@@ -234,6 +263,7 @@ const SUBJECTS = {
     { id: "french", name: "اللغة الفرنسية", icon: "🇫🇷", color: "#4338ca" },
     { id: "engineering", name: "العلوم الهندسية", icon: "⚙️", color: "#475569" },
   ],
+
   literary: [
     { id: "history", name: "التاريخ", icon: "📜", color: "#b45309" },
     { id: "geography", name: "الجغرافيا", icon: "🌍", color: "#047857" },
@@ -242,6 +272,7 @@ const SUBJECTS = {
     { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "#0891b2" },
     { id: "french", name: "اللغة الفرنسية", icon: "🇫🇷", color: "#4338ca" },
   ],
+
   vocational: [
     { id: "commercial", name: "العلوم التجارية", icon: "💼", color: "#ca8a04" },
     { id: "agricultural", name: "العلوم الزراعية", icon: "🌾", color: "#65a30d" },
@@ -254,21 +285,37 @@ const SUBJECTS = {
   ],
 };
 
+/* =========================================================
+   الصفحة الرئيسية
+========================================================= */
+
 export default function Home() {
-  const [track, setTrack] = useState<"scientific" | "literary" | "vocational" | null>(null);
+  const [track, setTrack] = useState<
+    "scientific" | "literary" | "vocational" | null
+  >(null);
+
   const [subject, setSubject] = useState<any>(null);
+
   const [tab, setTab] = useState<"books" | "exams" | "lessons">("books");
 
   const [lessons, setLessons] = useState<any[]>([]);
   const [loadingLessons, setLoadingLessons] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<any>(null);
 
-  const currentFiles = subject && tab !== "lessons" ? CONTENT_DATABASE[subject.id]?.[tab] || [] : [];
+  const currentFiles =
+    subject && tab !== "lessons"
+      ? CONTENT_DATABASE[subject.id]?.[tab] || []
+      : [];
+
+  /* =========================================================
+     تحميل الدروس من Supabase
+  ========================================================= */
 
   useEffect(() => {
     if (tab === "lessons" && subject) {
       setLoadingLessons(true);
       setSelectedLesson(null);
+
       supabase
         .from("lessons")
         .select("*")
@@ -279,6 +326,7 @@ export default function Home() {
           } else {
             setLessons([]);
           }
+
           setLoadingLessons(false);
         });
     }
@@ -291,55 +339,188 @@ export default function Home() {
   };
 
   return (
-    <div dir="rtl" style={{ minHeight: "100vh", backgroundColor: "#0f172a", color: "#f8fafc", fontFamily: "sans-serif", padding: "16px" }}>
-      <div style={{ width: "100%", borderBottom: "1px solid #334155", position: "relative" }}>
-        <img
-          src="https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Banner.jpg"
-          alt="مساعد الشهادة الثانوية السودانية"
-          style={{ width: "100%", display: "block" }}
-        />
+    <div
+      dir="rtl"
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#0f172a",
+        color: "#f8fafc",
+        fontFamily: "Arial, sans-serif",
+        padding: "16px",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "700px",
+          margin: "0 auto",
+        }}
+      >
+        {/* =====================================================
+            الصفحة الرئيسية الجديدة
+        ===================================================== */}
+
         {!track && (
-          <>
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              overflow: "hidden",
+              borderRadius: "18px",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.35)",
+              backgroundColor: "#fff",
+            }}
+          >
+            <img
+              src="/home-cover.png"
+              alt="مساعد الشهادة الثانوية السودانية"
+              style={{
+                display: "block",
+                width: "100%",
+                height: "auto",
+              }}
+            />
+
+            {/* ================================================
+                زر المسار العلمي
+            ================================================= */}
+
             <button
               onClick={() => setTrack("scientific")}
               aria-label="المسار العلمي"
-              style={{ position: "absolute", top: "59%", left: 0, width: "100%", height: "11.5%", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+              style={{
+                position: "absolute",
+                top: "58.5%",
+                right: "20%",
+                width: "80%",
+                height: "12.5%",
+                padding: 0,
+                margin: 0,
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+              }}
             />
+
+            {/* ================================================
+                زر المسار الأدبي
+            ================================================= */}
+
             <button
               onClick={() => setTrack("literary")}
               aria-label="المسار الأدبي"
-              style={{ position: "absolute", top: "70.5%", left: 0, width: "100%", height: "10.5%", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+              style={{
+                position: "absolute",
+                top: "70.5%",
+                right: "20%",
+                width: "80%",
+                height: "11%",
+                padding: 0,
+                margin: 0,
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+              }}
             />
+
+            {/* ================================================
+                زر المسار المهني
+            ================================================= */}
+
             <button
               onClick={() => setTrack("vocational")}
               aria-label="المسار المهني"
-              style={{ position: "absolute", top: "81%", left: 0, width: "100%", height: "19%", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+              style={{
+                position: "absolute",
+                top: "81%",
+                right: "20%",
+                width: "80%",
+                height: "18%",
+                padding: 0,
+                margin: 0,
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+              }}
             />
-          </>
+          </div>
         )}
-      </div>
 
-      <div style={{ maxWidth: "480px", margin: "20px auto" }}>
+        {/* =====================================================
+            اختيار المادة
+        ===================================================== */}
+
         {track && !subject && (
           <div>
-            <button onClick={() => setTrack(null)} style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", marginBottom: "12px" }}>
-              ➡️ تغيير المسار ({trackLabels[track]})
+            <button
+              onClick={() => setTrack(null)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#38bdf8",
+                cursor: "pointer",
+                marginBottom: "12px",
+                fontSize: "14px",
+              }}
+            >
+              ➡️ العودة للرئيسية
             </button>
-            <h2 style={{ fontSize: "18px", marginBottom: "12px" }}>اختر المادة:</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+
+            <h2
+              style={{
+                fontSize: "22px",
+                marginBottom: "16px",
+                textAlign: "center",
+              }}
+            >
+              مواد المسار {trackLabels[track]}
+            </h2>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "10px",
+              }}
+            >
               {SUBJECTS[track].map((item) => (
                 <button
                   key={item.id}
-                  onClick={() => setSubject(item)}
-                  style={{ padding: "16px", borderRadius: "10px", backgroundColor: "#1e293b", border: "1px solid #334155", color: "#fff", cursor: "pointer", textAlign: "center" }}
+                  onClick={() => {
+                    setSubject(item);
+                    setTab("books");
+                  }}
+                  style={{
+                    padding: "16px",
+                    borderRadius: "12px",
+                    backgroundColor: "#1e293b",
+                    border: "1px solid #334155",
+                    color: "#fff",
+                    cursor: "pointer",
+                    textAlign: "center",
+                    transition: "transform 0.15s ease",
+                  }}
                 >
-                  <div style={{ fontSize: "28px" }}>{item.icon}</div>
-                  <div style={{ fontWeight: "bold", marginTop: "8px", fontSize: "14px" }}>{item.name}</div>
+                  <div style={{ fontSize: "30px" }}>{item.icon}</div>
+
+                  <div
+                    style={{
+                      fontWeight: "bold",
+                      marginTop: "8px",
+                      fontSize: "14px",
+                    }}
+                  >
+                    {item.name}
+                  </div>
                 </button>
               ))}
             </div>
           </div>
         )}
+
+        {/* =====================================================
+            صفحة المادة
+        ===================================================== */}
 
         {subject && (
           <div>
@@ -349,63 +530,199 @@ export default function Home() {
                 setTab("books");
                 setSelectedLesson(null);
               }}
-              style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", marginBottom: "12px" }}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#38bdf8",
+                cursor: "pointer",
+                marginBottom: "12px",
+                fontSize: "14px",
+              }}
             >
               ➡️ العودة لقائمة المواد
             </button>
 
-            <div style={{ padding: "16px", borderRadius: "12px", backgroundColor: subject.color, color: "#fff", textAlign: "center", marginBottom: "16px" }}>
-              <span style={{ fontSize: "36px" }}>{subject.icon}</span>
-              <h2 style={{ margin: "8px 0 0 0", fontSize: "20px" }}>{subject.name}</h2>
+            {/* عنوان المادة */}
+
+            <div
+              style={{
+                padding: "18px",
+                borderRadius: "14px",
+                backgroundColor: subject.color,
+                color: "#fff",
+                textAlign: "center",
+                marginBottom: "16px",
+              }}
+            >
+              <span style={{ fontSize: "40px" }}>{subject.icon}</span>
+
+              <h2
+                style={{
+                  margin: "8px 0 0 0",
+                  fontSize: "21px",
+                }}
+              >
+                {subject.name}
+              </h2>
             </div>
 
-            <div style={{ display: "flex", backgroundColor: "#1e293b", borderRadius: "8px", padding: "4px", marginBottom: "16px" }}>
+            {/* التبويبات */}
+
+            <div
+              style={{
+                display: "flex",
+                backgroundColor: "#1e293b",
+                borderRadius: "10px",
+                padding: "4px",
+                marginBottom: "16px",
+                gap: "3px",
+              }}
+            >
               <button
-                onClick={() => { setTab("books"); setSelectedLesson(null); }}
-                style={{ flex: 1, padding: "8px", border: "none", borderRadius: "6px", backgroundColor: tab === "books" ? "#3b82f6" : "transparent", color: "#fff", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}
+                onClick={() => {
+                  setTab("books");
+                  setSelectedLesson(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: "9px 5px",
+                  border: "none",
+                  borderRadius: "7px",
+                  backgroundColor:
+                    tab === "books" ? "#3b82f6" : "transparent",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  fontSize: "12px",
+                }}
               >
                 📖 الكتب
               </button>
+
               <button
-                onClick={() => { setTab("exams"); setSelectedLesson(null); }}
-                style={{ flex: 1, padding: "8px", border: "none", borderRadius: "6px", backgroundColor: tab === "exams" ? "#3b82f6" : "transparent", color: "#fff", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}
+                onClick={() => {
+                  setTab("exams");
+                  setSelectedLesson(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: "9px 5px",
+                  border: "none",
+                  borderRadius: "7px",
+                  backgroundColor:
+                    tab === "exams" ? "#3b82f6" : "transparent",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  fontSize: "12px",
+                }}
               >
                 📝 امتحانات
               </button>
+
               <button
                 onClick={() => setTab("lessons")}
-                style={{ flex: 1, padding: "8px", border: "none", borderRadius: "6px", backgroundColor: tab === "lessons" ? "#3b82f6" : "transparent", color: "#fff", cursor: "pointer", fontWeight: "bold", fontSize: "12px" }}
+                style={{
+                  flex: 1,
+                  padding: "9px 5px",
+                  border: "none",
+                  borderRadius: "7px",
+                  backgroundColor:
+                    tab === "lessons" ? "#3b82f6" : "transparent",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  fontSize: "12px",
+                }}
               >
-                ⚡ الدروس التفاعلية
+                ⚡ الدروس
               </button>
             </div>
 
+            {/* =================================================
+                الكتب والامتحانات
+            ================================================= */}
+
             {tab !== "lessons" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
                 {currentFiles.length > 0 ? (
                   currentFiles.map((file: any, idx: number) => (
-                    <div key={idx} style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <div>
-                        <div style={{ fontWeight: "bold", fontSize: "14px" }}>{file.title}</div>
-                        <div style={{ fontSize: "11px", color: "#94a3b8" }}>{file.size}</div>
+                    <div
+                      key={idx}
+                      style={{
+                        padding: "13px",
+                        borderRadius: "10px",
+                        backgroundColor: "#1e293b",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "10px",
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontWeight: "bold",
+                            fontSize: "14px",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {file.title}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            color: "#94a3b8",
+                            marginTop: "3px",
+                          }}
+                        >
+                          {file.size}
+                        </div>
                       </div>
+
                       <a
                         href={file.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ padding: "6px 12px", backgroundColor: "#22c55e", textDecoration: "none", color: "#fff", borderRadius: "6px", fontWeight: "bold", fontSize: "13px" }}
+                        style={{
+                          flexShrink: 0,
+                          padding: "7px 13px",
+                          backgroundColor: "#22c55e",
+                          textDecoration: "none",
+                          color: "#fff",
+                          borderRadius: "7px",
+                          fontWeight: "bold",
+                          fontSize: "13px",
+                        }}
                       >
-                        تحميل
+                        فتح
                       </a>
                     </div>
                   ))
                 ) : (
-                  <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
+                  <div
+                    style={{
+                      textAlign: "center",
+                      color: "#94a3b8",
+                      padding: "30px 10px",
+                    }}
+                  >
                     لا توجد ملفات مرفوعة حالياً لهذه المادة.
                   </div>
                 )}
               </div>
             )}
+
+            {/* =================================================
+                الدروس التفاعلية
+            ================================================= */}
 
             {tab === "lessons" && (
               <div>
@@ -413,37 +730,105 @@ export default function Home() {
                   <div>
                     <button
                       onClick={() => setSelectedLesson(null)}
-                      style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", marginBottom: "12px" }}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: "#38bdf8",
+                        cursor: "pointer",
+                        marginBottom: "12px",
+                      }}
                     >
                       ➡️ العودة لقائمة الدروس
                     </button>
-                    <div style={{ backgroundColor: "#1e293b", borderRadius: "10px", padding: "16px" }}>
-                      <h3 style={{ color: "#fbbf24", marginTop: 0 }}>{selectedLesson.lesson_title}</h3>
+
+                    <div
+                      style={{
+                        backgroundColor: "#1e293b",
+                        borderRadius: "10px",
+                        padding: "16px",
+                      }}
+                    >
+                      <h3
+                        style={{
+                          color: "#fbbf24",
+                          marginTop: 0,
+                        }}
+                      >
+                        {selectedLesson.lesson_title}
+                      </h3>
+
                       <div
-                        style={{ color: "#e2e8f0", lineHeight: 1.8 }}
-                        dangerouslySetInnerHTML={{ __html: selectedLesson.content }}
+                        style={{
+                          color: "#e2e8f0",
+                          lineHeight: 1.8,
+                        }}
+                        dangerouslySetInnerHTML={{
+                          __html: selectedLesson.content,
+                        }}
                       />
                     </div>
                   </div>
                 ) : loadingLessons ? (
-                  <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
+                  <div
+                    style={{
+                      textAlign: "center",
+                      color: "#94a3b8",
+                      padding: "30px 0",
+                    }}
+                  >
                     جاري تحميل الدروس...
                   </div>
                 ) : lessons.length > 0 ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "10px",
+                    }}
+                  >
                     {lessons.map((lesson) => (
                       <button
                         key={lesson.id}
                         onClick={() => setSelectedLesson(lesson)}
-                        style={{ padding: "14px", borderRadius: "8px", backgroundColor: "#1e293b", border: "1px solid #334155", color: "#fff", textAlign: "right", cursor: "pointer" }}
+                        style={{
+                          padding: "14px",
+                          borderRadius: "9px",
+                          backgroundColor: "#1e293b",
+                          border: "1px solid #334155",
+                          color: "#fff",
+                          textAlign: "right",
+                          cursor: "pointer",
+                        }}
                       >
-                        <div style={{ fontSize: "12px", color: "#fbbf24", marginBottom: "4px" }}>{lesson.unit_title}</div>
-                        <div style={{ fontWeight: "bold", fontSize: "14px" }}>{lesson.lesson_title}</div>
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: "#fbbf24",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          {lesson.unit_title}
+                        </div>
+
+                        <div
+                          style={{
+                            fontWeight: "bold",
+                            fontSize: "14px",
+                          }}
+                        >
+                          {lesson.lesson_title}
+                        </div>
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
+                  <div
+                    style={{
+                      textAlign: "center",
+                      color: "#94a3b8",
+                      padding: "30px 0",
+                    }}
+                  >
                     لا توجد دروس تفاعلية مضافة حالياً لهذه المادة.
                   </div>
                 )}
@@ -454,4 +839,5 @@ export default function Home() {
       </div>
     </div>
   );
-  }
+}
+```
