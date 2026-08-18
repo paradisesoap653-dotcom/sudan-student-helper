@@ -9,12 +9,22 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
       {
         title: "الكتاب المدرسي - الرياضيات المتخصصة (الجزء الأول)",
         size: "PDF",
-        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/math.pdf",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/math1.pdf",
       },
       {
         title: "الكتاب المدرسي - الرياضيات المتخصصة (الجزء الثاني)",
         size: "PDF",
-        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/mathm.pdf",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/math2.pdf",
+      },
+    ],
+    exams: [],
+  },
+  mathBasic: {
+    books: [
+      {
+        title: "الكتاب المدرسي - الرياضيات الأساسية",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/math3.pdf",
       },
     ],
     exams: [],
@@ -101,10 +111,25 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
         size: "PDF",
         url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/%20eslam1.pdf",
       },
+      {
+        title: "الكتاب المدرسي - الدراسات الإسلامية",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Drasat%20",
+      },
     ],
     exams: [],
   },
   english: { books: [], exams: [] },
+  french: {
+    books: [
+      {
+        title: "الكتاب المدرسي - اللغة الفرنسية",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/frans.pdf",
+      },
+    ],
+    exams: [],
+  },
   history: {
     books: [
       {
@@ -115,7 +140,16 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
-  geography: { books: [], exams: [] },
+  geography: {
+    books: [
+      {
+        title: "الكتاب المدرسي - الجغرافيا",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/geogr.pdf",
+      },
+    ],
+    exams: [],
+  },
   engineering: {
     books: [
       {
@@ -126,16 +160,78 @@ const CONTENT_DATABASE: Record<string, { books: any[]; exams: any[] }> = {
     ],
     exams: [],
   },
+  commercial: {
+    books: [
+      {
+        title: "الكتاب المدرسي - العلوم التجارية",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/%20scien.pdf",
+      },
+    ],
+    exams: [],
+  },
+  agricultural: {
+    books: [
+      {
+        title: "الكتاب المدرسي - العلوم الزراعية",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/agric.pdf",
+      },
+    ],
+    exams: [],
+  },
+  military: {
+    books: [
+      {
+        title: "الكتاب المدرسي - العلوم العسكرية",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/army.pdf",
+      },
+    ],
+    exams: [],
+  },
+  computer: {
+    books: [
+      {
+        title: "الكتاب المدرسي - علوم الحاسوب",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Comp.pdf",
+      },
+    ],
+    exams: [],
+  },
+  family: {
+    books: [
+      {
+        title: "الكتاب المدرسي - العلوم الأسرية",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/family.pdf",
+      },
+    ],
+    exams: [],
+  },
+  art: {
+    books: [
+      {
+        title: "الكتاب المدرسي - الفنون والتصميم",
+        size: "PDF",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/art.pdf",
+      },
+    ],
+    exams: [],
+  },
 };
 
 const SUBJECTS = {
   scientific: [
     { id: "math", name: "الرياضيات المتخصصة", icon: "📐", color: "#2563eb" },
+    { id: "mathBasic", name: "الرياضيات الأساسية", icon: "➗", color: "#1e40af" },
     { id: "physics", name: "الفيزياء", icon: "⚡", color: "#7c3aed" },
     { id: "chemistry", name: "الكيمياء", icon: "🧪", color: "#059669" },
     { id: "biology", name: "الأحياء", icon: "🧬", color: "#e11d48" },
     { id: "arabic", name: "اللغة العربية", icon: "📖", color: "#d97706" },
     { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "#0891b2" },
+    { id: "french", name: "اللغة الفرنسية", icon: "🇫🇷", color: "#4338ca" },
     { id: "engineering", name: "العلوم الهندسية", icon: "⚙️", color: "#475569" },
   ],
   literary: [
@@ -144,11 +240,22 @@ const SUBJECTS = {
     { id: "islamic", name: "الدراسات الإسلامية", icon: "🕌", color: "#1d4ed8" },
     { id: "arabic", name: "اللغة العربية", icon: "📖", color: "#d97706" },
     { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "#0891b2" },
+    { id: "french", name: "اللغة الفرنسية", icon: "🇫🇷", color: "#4338ca" },
+  ],
+  vocational: [
+    { id: "commercial", name: "العلوم التجارية", icon: "💼", color: "#ca8a04" },
+    { id: "agricultural", name: "العلوم الزراعية", icon: "🌾", color: "#65a30d" },
+    { id: "military", name: "العلوم العسكرية", icon: "🎖️", color: "#57534e" },
+    { id: "computer", name: "علوم الحاسوب", icon: "💻", color: "#0ea5e9" },
+    { id: "family", name: "العلوم الأسرية", icon: "👨‍👩‍👧‍👦", color: "#db2777" },
+    { id: "art", name: "الفنون والتصميم", icon: "🎨", color: "#9333ea" },
+    { id: "arabic", name: "اللغة العربية", icon: "📖", color: "#d97706" },
+    { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "#0891b2" },
   ],
 };
 
 export default function Home() {
-  const [track, setTrack] = useState<"scientific" | "literary" | null>(null);
+  const [track, setTrack] = useState<"scientific" | "literary" | "vocational" | null>(null);
   const [subject, setSubject] = useState<any>(null);
   const [tab, setTab] = useState<"books" | "exams" | "lessons">("books");
 
@@ -177,6 +284,12 @@ export default function Home() {
     }
   }, [tab, subject]);
 
+  const trackLabels: Record<string, string> = {
+    scientific: "العلمي",
+    literary: "الأدبي",
+    vocational: "المهني",
+  };
+
   return (
     <div dir="rtl" style={{ minHeight: "100vh", backgroundColor: "#0f172a", color: "#f8fafc", fontFamily: "sans-serif", padding: "16px" }}>
       <div style={{ textAlign: "center", padding: "20px 0", borderBottom: "1px solid #334155" }}>
@@ -204,6 +317,14 @@ export default function Home() {
                 📚 المسار الأدبي
                 <span style={{ display: "block", fontSize: "12px", opacity: 0.8, marginTop: "4px" }}>تاريخ، جغرافيا، دراسات إسلامية...</span>
               </button>
+
+              <button
+                onClick={() => setTrack("vocational")}
+                style={{ padding: "20px", borderRadius: "12px", background: "linear-gradient(to left, #65a30d, #4d7c0f)", color: "#fff", border: "none", fontSize: "18px", fontWeight: "bold", cursor: "pointer", textAlign: "right" }}
+              >
+                🛠️ المسار المهني
+                <span style={{ display: "block", fontSize: "12px", opacity: 0.8, marginTop: "4px" }}>تجارية، زراعية، عسكرية، حاسوب...</span>
+              </button>
             </div>
           </div>
         )}
@@ -211,7 +332,7 @@ export default function Home() {
         {track && !subject && (
           <div>
             <button onClick={() => setTrack(null)} style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", marginBottom: "12px" }}>
-              ➡️ تغيير المسار ({track === "scientific" ? "العلمي" : "الأدبي"})
+              ➡️ تغيير المسار ({trackLabels[track]})
             </button>
             <h2 style={{ fontSize: "18px", marginBottom: "12px" }}>اختر المادة:</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
@@ -275,71 +396,3 @@ export default function Home() {
                     <div key={idx} style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
                         <div style={{ fontWeight: "bold", fontSize: "14px" }}>{file.title}</div>
-                        <div style={{ fontSize: "11px", color: "#94a3b8" }}>{file.size}</div>
-                      </div>
-                      <a
-                        href={file.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ padding: "6px 12px", backgroundColor: "#22c55e", textDecoration: "none", color: "#fff", borderRadius: "6px", fontWeight: "bold", fontSize: "13px" }}
-                      >
-                        تحميل
-                      </a>
-                    </div>
-                  ))
-                ) : (
-                  <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
-                    لا توجد ملفات مرفوعة حالياً لهذه المادة.
-                  </div>
-                )}
-              </div>
-            )}
-
-            {tab === "lessons" && (
-              <div>
-                {selectedLesson ? (
-                  <div>
-                    <button
-                      onClick={() => setSelectedLesson(null)}
-                      style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", marginBottom: "12px" }}
-                    >
-                      ➡️ العودة لقائمة الدروس
-                    </button>
-                    <div style={{ backgroundColor: "#1e293b", borderRadius: "10px", padding: "16px" }}>
-                      <h3 style={{ color: "#fbbf24", marginTop: 0 }}>{selectedLesson.lesson_title}</h3>
-                      <div
-                        style={{ color: "#e2e8f0", lineHeight: 1.8 }}
-                        dangerouslySetInnerHTML={{ __html: selectedLesson.content }}
-                      />
-                    </div>
-                  </div>
-                ) : loadingLessons ? (
-                  <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
-                    جاري تحميل الدروس...
-                  </div>
-                ) : lessons.length > 0 ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    {lessons.map((lesson) => (
-                      <button
-                        key={lesson.id}
-                        onClick={() => setSelectedLesson(lesson)}
-                        style={{ padding: "14px", borderRadius: "8px", backgroundColor: "#1e293b", border: "1px solid #334155", color: "#fff", textAlign: "right", cursor: "pointer" }}
-                      >
-                        <div style={{ fontSize: "12px", color: "#fbbf24", marginBottom: "4px" }}>{lesson.unit_title}</div>
-                        <div style={{ fontWeight: "bold", fontSize: "14px" }}>{lesson.lesson_title}</div>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
-                    لا توجد دروس تفاعلية مضافة حالياً لهذه المادة.
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-                  }
