@@ -292,9 +292,12 @@ export default function Home() {
 
   return (
     <div dir="rtl" style={{ minHeight: "100vh", backgroundColor: "#0f172a", color: "#f8fafc", fontFamily: "sans-serif", padding: "16px" }}>
-      <div style={{ textAlign: "center", padding: "20px 0", borderBottom: "1px solid #334155" }}>
-        <h1 style={{ fontSize: "24px", fontWeight: "bold", color: "#fbbf24", margin: 0 }}>🎓 مساعد الشهادة السودانية</h1>
-        <p style={{ fontSize: "13px", color: "#94a3b8", marginTop: "4px" }}>المكتبة الرقمية الشاملة للطلاب</p>
+      <div style={{ width: "100%", borderBottom: "1px solid #334155" }}>
+        <img
+          src="https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Banner.jpg"
+          alt="مساعد الشهادة الثانوية السودانية"
+          style={{ width: "100%", display: "block" }}
+        />
       </div>
 
       <div style={{ maxWidth: "480px", margin: "20px auto" }}>
@@ -463,4 +466,4 @@ export default function Home() {
       </div>
     </div>
   );
-}
+    }
