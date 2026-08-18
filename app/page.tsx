@@ -396,3 +396,71 @@ export default function Home() {
                     <div key={idx} style={{ padding: "12px", borderRadius: "8px", backgroundColor: "#1e293b", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div>
                         <div style={{ fontWeight: "bold", fontSize: "14px" }}>{file.title}</div>
+                        <div style={{ fontSize: "11px", color: "#94a3b8" }}>{file.size}</div>
+                      </div>
+                      <a
+                        href={file.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ padding: "6px 12px", backgroundColor: "#22c55e", textDecoration: "none", color: "#fff", borderRadius: "6px", fontWeight: "bold", fontSize: "13px" }}
+                      >
+                        تحميل
+                      </a>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
+                    لا توجد ملفات مرفوعة حالياً لهذه المادة.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tab === "lessons" && (
+              <div>
+                {selectedLesson ? (
+                  <div>
+                    <button
+                      onClick={() => setSelectedLesson(null)}
+                      style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", marginBottom: "12px" }}
+                    >
+                      ➡️ العودة لقائمة الدروس
+                    </button>
+                    <div style={{ backgroundColor: "#1e293b", borderRadius: "10px", padding: "16px" }}>
+                      <h3 style={{ color: "#fbbf24", marginTop: 0 }}>{selectedLesson.lesson_title}</h3>
+                      <div
+                        style={{ color: "#e2e8f0", lineHeight: 1.8 }}
+                        dangerouslySetInnerHTML={{ __html: selectedLesson.content }}
+                      />
+                    </div>
+                  </div>
+                ) : loadingLessons ? (
+                  <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
+                    جاري تحميل الدروس...
+                  </div>
+                ) : lessons.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    {lessons.map((lesson) => (
+                      <button
+                        key={lesson.id}
+                        onClick={() => setSelectedLesson(lesson)}
+                        style={{ padding: "14px", borderRadius: "8px", backgroundColor: "#1e293b", border: "1px solid #334155", color: "#fff", textAlign: "right", cursor: "pointer" }}
+                      >
+                        <div style={{ fontSize: "12px", color: "#fbbf24", marginBottom: "4px" }}>{lesson.unit_title}</div>
+                        <div style={{ fontWeight: "bold", fontSize: "14px" }}>{lesson.lesson_title}</div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: "center", color: "#94a3b8", padding: "20px 0" }}>
+                    لا توجد دروس تفاعلية مضافة حالياً لهذه المادة.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
