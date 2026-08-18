@@ -168,12 +168,17 @@ const CONTENT_DATABASE: Record<string, ContentItem> = {
     ],
     exams: [],
   },
-
-  english: {
-    books: [],
-    exams: [],
-  },
-
+  
+english: {
+  books: [
+    {
+      title: "الكتاب المدرسي - اللغة الإنجليزية",
+      size: "PDF",
+      url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/eng.pdf"
+    }
+  ],
+  exams: []
+},
   french: {
     books: [
       {
@@ -1158,4 +1163,4 @@ export default function Home() {
       )}
     </main>
   );
-       }
+                    }
