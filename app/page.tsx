@@ -292,46 +292,34 @@ export default function Home() {
 
   return (
     <div dir="rtl" style={{ minHeight: "100vh", backgroundColor: "#0f172a", color: "#f8fafc", fontFamily: "sans-serif", padding: "16px" }}>
-      <div style={{ width: "100%", borderBottom: "1px solid #334155" }}>
+      <div style={{ width: "100%", borderBottom: "1px solid #334155", position: "relative" }}>
         <img
           src="https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Banner.jpg"
           alt="مساعد الشهادة الثانوية السودانية"
           style={{ width: "100%", display: "block" }}
         />
+        {!track && (
+          <>
+            <button
+              onClick={() => setTrack("scientific")}
+              aria-label="المسار العلمي"
+              style={{ position: "absolute", top: "59%", left: 0, width: "100%", height: "11.5%", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+            />
+            <button
+              onClick={() => setTrack("literary")}
+              aria-label="المسار الأدبي"
+              style={{ position: "absolute", top: "70.5%", left: 0, width: "100%", height: "10.5%", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+            />
+            <button
+              onClick={() => setTrack("vocational")}
+              aria-label="المسار المهني"
+              style={{ position: "absolute", top: "81%", left: 0, width: "100%", height: "19%", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+            />
+          </>
+        )}
       </div>
 
       <div style={{ maxWidth: "480px", margin: "20px auto" }}>
-        {!track && (
-          <div>
-            <h2 style={{ textAlign: "center", fontSize: "18px", marginBottom: "16px" }}>اختر مسارك الدراسي:</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              <button
-                onClick={() => setTrack("scientific")}
-                style={{ padding: "20px", borderRadius: "12px", background: "linear-gradient(to left, #2563eb, #1d4ed8)", color: "#fff", border: "none", fontSize: "18px", fontWeight: "bold", cursor: "pointer", textAlign: "right" }}
-              >
-                🔬 المسار العلمي
-                <span style={{ display: "block", fontSize: "12px", opacity: 0.8, marginTop: "4px" }}>فيزياء، كيمياء، أحياء، رياضيات...</span>
-              </button>
-
-              <button
-                onClick={() => setTrack("literary")}
-                style={{ padding: "20px", borderRadius: "12px", background: "linear-gradient(to left, #d97706, #b45309)", color: "#fff", border: "none", fontSize: "18px", fontWeight: "bold", cursor: "pointer", textAlign: "right" }}
-              >
-                📚 المسار الأدبي
-                <span style={{ display: "block", fontSize: "12px", opacity: 0.8, marginTop: "4px" }}>تاريخ، جغرافيا، دراسات إسلامية...</span>
-              </button>
-
-              <button
-                onClick={() => setTrack("vocational")}
-                style={{ padding: "20px", borderRadius: "12px", background: "linear-gradient(to left, #65a30d, #4d7c0f)", color: "#fff", border: "none", fontSize: "18px", fontWeight: "bold", cursor: "pointer", textAlign: "right" }}
-              >
-                🛠️ المسار المهني
-                <span style={{ display: "block", fontSize: "12px", opacity: 0.8, marginTop: "4px" }}>تجارية، زراعية، عسكرية، حاسوب...</span>
-              </button>
-            </div>
-          </div>
-        )}
-
         {track && !subject && (
           <div>
             <button onClick={() => setTrack(null)} style={{ background: "none", border: "none", color: "#38bdf8", cursor: "pointer", marginBottom: "12px" }}>
@@ -466,4 +454,4 @@ export default function Home() {
       </div>
     </div>
   );
-    }
+  }
