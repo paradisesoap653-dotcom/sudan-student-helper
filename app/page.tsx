@@ -177,7 +177,7 @@ english: {
       url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/eng.pdf"
     }
   ],
-  exams: []
+  exams: [],
 },
   french: {
     books: [
