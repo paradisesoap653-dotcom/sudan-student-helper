@@ -7,30 +7,42 @@ const supabase = createClient(
 
 export default async function LessonPage(props) {
   const params = await props.params;
-  const paramValue = params.id || params.slug || Object.values(params);
+  const paramValue = String(params.id || params.slug || Object.values(params)[0]).toLowerCase().trim();
 
-  let query = supabase.from('lessons').select('title, content, content_html');
+  // جلب كل الحقول الممكنة للتحقق المرن
+  const { data: lessons, error } = await supabase
+    .from('lessons')
+    .select('id, subject_id, title, content, content_html');
 
-  if (!isNaN(paramValue)) {
-    query = query.eq('id', parseInt(paramValue));
-  } else {
-    query = query.eq('subject_id', paramValue);
-  }
-
-  const { data: lesson, error } = await query.single();
-
-  if (error || !lesson) {
+  if (error || !lessons || lessons.length === 0) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
         <div className="text-center p-8 bg-slate-900 rounded-xl border border-red-500/30">
-          <p className="text-red-400 font-bold text-lg">عذراً، هذا الدرس غير متوفر حالياً!</p>
+          <p className="text-red-400 font-bold text-lg">عذراً، قاعدة البيانات غير متصلة حالياً!</p>
+        </div>
+      </div>
+    );
+  }
+
+  // البحث عن السطر المطابق بمرونة كاملة (سواء بالرابط الرقمي أو النصي)
+  const lesson = lessons.find(l => 
+    String(l.id) === paramValue || 
+    String(l.subject_id).toLowerCase().trim() === paramValue ||
+    paramValue.includes(String(l.subject_id).toLowerCase().trim())
+  );
+
+  if (!lesson) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+        <div className="text-center p-8 bg-slate-900 rounded-xl border border-red-500/30">
+          <p className="text-red-400 font-bold text-lg">عذراً، هذا الدرس غير متوفر حالياً في النظام!</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-2 sm:p-6">
+    <div className="min-h-screen bg-slate-955 text-slate-100 p-2 sm:p-6">
       <div className="max-w-3xl mx-auto">
         
         {lesson.content_html ? (
