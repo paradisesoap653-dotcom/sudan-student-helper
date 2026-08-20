@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "../supabaseClient";
 
 /* =========================================================
@@ -42,14 +42,6 @@ type Subject = {
 };
 
 type Track = "scientific" | "literary" | "vocational";
-
-type LessonStage =
-  | "learn"
-  | "vocabulary"
-  | "match"
-  | "grammar"
-  | "challenge"
-  | "result";
 
 /* =========================================================
    قاعدة المحتوى
@@ -306,295 +298,290 @@ const CONTENT_DATABASE: Record<string, ContentItem> = {
 
 const SUBJECTS: Record<Track, Subject[]> = {
   scientific: [
-    { id: "math", name: "الرياضيات المتخصصة", icon: "📐", color: "#2563eb" },
-    { id: "mathBasic", name: "الرياضيات الأساسية", icon: "➗", color: "#1e40af" },
-    { id: "physics", name: "الفيزياء", icon: "⚡", color: "#7c3aed" },
-    { id: "chemistry", name: "الكيمياء", icon: "🧪", color: "#059669" },
-    { id: "biology", name: "الأحياء", icon: "🧬", color: "#e11d48" },
-    { id: "arabic", name: "اللغة العربية", icon: "📖", color: "#d97706" },
-    { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "#0891b2" },
-    { id: "french", name: "اللغة الفرنسية", icon: "🇫🇷", color: "#4338ca" },
-    { id: "engineering", name: "العلوم الهندسية", icon: "⚙️", color: "#475569" },
+    {
+      id: "math",
+      name: "الرياضيات المتخصصة",
+      icon: "📐",
+      color: "#2563eb",
+    },
+    {
+      id: "mathBasic",
+      name: "الرياضيات الأساسية",
+      icon: "➗",
+      color: "#1e40af",
+    },
+    {
+      id: "physics",
+      name: "الفيزياء",
+      icon: "⚡",
+      color: "#7c3aed",
+    },
+    {
+      id: "chemistry",
+      name: "الكيمياء",
+      icon: "🧪",
+      color: "#059669",
+    },
+    {
+      id: "biology",
+      name: "الأحياء",
+      icon: "🧬",
+      color: "#e11d48",
+    },
+    {
+      id: "arabic",
+      name: "اللغة العربية",
+      icon: "📖",
+      color: "#d97706",
+    },
+    {
+      id: "english",
+      name: "اللغة الإنجليزية",
+      icon: "🔤",
+      color: "#0891b2",
+    },
+    {
+      id: "french",
+      name: "اللغة الفرنسية",
+      icon: "🇫🇷",
+      color: "#4338ca",
+    },
+    {
+      id: "engineering",
+      name: "العلوم الهندسية",
+      icon: "⚙️",
+      color: "#475569",
+    },
   ],
 
   literary: [
-    { id: "history", name: "التاريخ", icon: "📜", color: "#b45309" },
-    { id: "geography", name: "الجغرافيا", icon: "🌍", color: "#047857" },
-    { id: "islamic", name: "الدراسات الإسلامية", icon: "🕌", color: "#1d4ed8" },
-    { id: "arabic", name: "اللغة العربية", icon: "📖", color: "#d97706" },
-    { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "#0891b2" },
-    { id: "french", name: "اللغة الفرنسية", icon: "🇫🇷", color: "#4338ca" },
+    {
+      id: "history",
+      name: "التاريخ",
+      icon: "📜",
+      color: "#b45309",
+    },
+    {
+      id: "geography",
+      name: "الجغرافيا",
+      icon: "🌍",
+      color: "#047857",
+    },
+    {
+      id: "islamic",
+      name: "الدراسات الإسلامية",
+      icon: "🕌",
+      color: "#1d4ed8",
+    },
+    {
+      id: "arabic",
+      name: "اللغة العربية",
+      icon: "📖",
+      color: "#d97706",
+    },
+    {
+      id: "english",
+      name: "اللغة الإنجليزية",
+      icon: "🔤",
+      color: "#0891b2",
+    },
+    {
+      id: "french",
+      name: "اللغة الفرنسية",
+      icon: "🇫🇷",
+      color: "#4338ca",
+    },
   ],
 
   vocational: [
-    { id: "commercial", name: "العلوم التجارية", icon: "💼", color: "#ca8a04" },
-    { id: "agricultural", name: "العلوم الزراعية", icon: "🌾", color: "#65a30d" },
-    { id: "military", name: "العلوم العسكرية", icon: "🎖️", color: "#57534e" },
-    { id: "computer", name: "علوم الحاسوب", icon: "💻", color: "#0ea5e9" },
-    { id: "family", name: "العلوم الأسرية", icon: "👨‍👩‍👧‍👦", color: "#db2777" },
-    { id: "art", name: "الفنون والتصميم", icon: "🎨", color: "#9333ea" },
-    { id: "arabic", name: "اللغة العربية", icon: "📖", color: "#d97706" },
-    { id: "english", name: "اللغة الإنجليزية", icon: "🔤", color: "#0891b2" },
+    {
+      id: "commercial",
+      name: "العلوم التجارية",
+      icon: "💼",
+      color: "#ca8a04",
+    },
+    {
+      id: "agricultural",
+      name: "العلوم الزراعية",
+      icon: "🌾",
+      color: "#65a30d",
+    },
+    {
+      id: "military",
+      name: "العلوم العسكرية",
+      icon: "🎖️",
+      color: "#57534e",
+    },
+    {
+      id: "computer",
+      name: "علوم الحاسوب",
+      icon: "💻",
+      color: "#0ea5e9",
+    },
+    {
+      id: "family",
+      name: "العلوم الأسرية",
+      icon: "👨‍👩‍👧‍👦",
+      color: "#db2777",
+    },
+    {
+      id: "art",
+      name: "الفنون والتصميم",
+      icon: "🎨",
+      color: "#9333ea",
+    },
+    {
+      id: "arabic",
+      name: "اللغة العربية",
+      icon: "📖",
+      color: "#d97706",
+    },
+    {
+      id: "english",
+      name: "اللغة الإنجليزية",
+      icon: "🔤",
+      color: "#0891b2",
+    },
   ],
 };
-
-/* =========================================================
-   مساعد لتوليد خيارات Match
-========================================================= */
-
-function shuffleArray<T>(items: T[]): T[] {
-  return [...items].sort(() => Math.random() - 0.5);
-}
 
 /* =========================================================
    مكوّن الدرس التفاعلي
 ========================================================= */
 
-function InteractiveLesson({
-  lesson,
-  stage,
-  setStage,
-  vocabIndex,
-  setVocabIndex,
-  onExit,
-}: any) {
-  const data = lesson.content_json || {};
+function shuffleArray<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
-  const vocab = data.vocabulary || [];
-  const match = data.match || [];
-  const grammar = data.grammar || {};
-  const challenge = data.challenge || [];
+function MatchGame({ pairs, onComplete }: { pairs: { term: string; meaning: string }[]; onComplete: () => void }) {
+  const meaningsOrder = useMemo(() => shuffleArray(pairs.map((p) => p.meaning)), [pairs]);
+  const [selectedTerm, setSelectedTerm] = useState<string | null>(null);
+  const [matched, setMatched] = useState<string[]>([]);
+  const [wrongMeaning, setWrongMeaning] = useState<string | null>(null);
 
-  /* -----------------------------
-     Match
-  ----------------------------- */
+  const isComplete = matched.length === pairs.length;
 
-  const [matchIndex, setMatchIndex] = useState(0);
-  const [matchOptions, setMatchOptions] = useState<any[]>([]);
-  const [matchSelected, setMatchSelected] = useState<string | null>(null);
-  const [matchCorrect, setMatchCorrect] = useState(false);
-  const [matchScore, setMatchScore] = useState(0);
-
-  /* -----------------------------
-     Grammar
-  ----------------------------- */
-
-  const [grammarIndex, setGrammarIndex] = useState(0);
-  const [grammarAnswer, setGrammarAnswer] = useState<string | null>(null);
-  const [grammarScore, setGrammarScore] = useState(0);
-
-  /* -----------------------------
-     Challenge
-  ----------------------------- */
-
-  const [challengeIndex, setChallengeIndex] = useState(0);
-  const [challengeAnswer, setChallengeAnswer] = useState<string | null>(null);
-  const [challengeScore, setChallengeScore] = useState(0);
-
-  /* =========================================================
-     تجهيز خيارات Match
-  ========================================================= */
-
-  useEffect(() => {
-    if (stage !== "match" || !match.length) return;
-
-    const current = match[matchIndex];
-
-    if (!current) return;
-
-    const otherMeanings = match
-      .filter((_: any, i: number) => i !== matchIndex)
-      .map((item: any) => item.meaning);
-
-    const options = shuffleArray([
-      current.meaning,
-      ...shuffleArray(otherMeanings).slice(0, 3),
-    ]);
-
-    setMatchOptions(options);
-    setMatchSelected(null);
-    setMatchCorrect(false);
-  }, [stage, matchIndex, match.length]);
-
-  /* =========================================================
-     بدء المباراة من جديد
-  ========================================================= */
-
-  const startMatch = () => {
-    setMatchIndex(0);
-    setMatchScore(0);
-    setMatchSelected(null);
-    setMatchCorrect(false);
-    setStage("match");
+  const handleTermClick = (term: string) => {
+    if (matched.includes(term)) return;
+    setSelectedTerm(term);
+    setWrongMeaning(null);
   };
 
-  /* =========================================================
-     الإجابة في Match
-  ========================================================= */
+  const handleMeaningClick = (meaning: string) => {
+    if (!selectedTerm) return;
+    const matchedTermForMeaning = pairs.find((p) => p.meaning === meaning)?.term;
+    if (matchedTermForMeaning && matched.includes(matchedTermForMeaning)) return;
 
-  const answerMatch = (answer: string) => {
-    if (matchSelected !== null) return;
-
-    setMatchSelected(answer);
-
-    const correct = answer === match[matchIndex].meaning;
-
-    if (correct) {
-      setMatchCorrect(true);
-      setMatchScore((prev: number) => prev + 1);
+    const correctMeaning = pairs.find((p) => p.term === selectedTerm)?.meaning;
+    if (meaning === correctMeaning) {
+      setMatched([...matched, selectedTerm]);
+      setSelectedTerm(null);
+      setWrongMeaning(null);
     } else {
-      setMatchCorrect(false);
+      setWrongMeaning(meaning);
+      setTimeout(() => setWrongMeaning(null), 500);
     }
   };
-
-  /* =========================================================
-     التالي في Match
-  ========================================================= */
-
-  const nextMatch = () => {
-    if (matchIndex < match.length - 1) {
-      setMatchIndex((prev: number) => prev + 1);
-    } else {
-      setGrammarIndex(0);
-      setGrammarAnswer(null);
-      setGrammarScore(0);
-      setStage("grammar");
-    }
-  };
-
-  /* =========================================================
-     Grammar
-  ========================================================= */
-
-  const practiceVerbs = grammar.practice_verbs || [];
-
-  const grammarQuestions = practiceVerbs.map((verb: string) => ({
-    question: `What is the past tense of "${verb}"?`,
-    answer:
-      verb === "arrive"
-        ? "arrived"
-        : verb === "buy"
-        ? "bought"
-        : verb === "catch"
-        ? "caught"
-        : verb === "earn"
-        ? "earned"
-        : verb === "help"
-        ? "helped"
-        : verb === "keep"
-        ? "kept"
-        : verb === "live"
-        ? "lived"
-        : verb === "run"
-        ? "ran"
-        : verb === "visit"
-        ? "visited"
-        : verb === "win"
-        ? "won"
-        : `${verb}ed`,
-    options:
-      verb === "arrive"
-        ? ["arrived", "arrive", "arriving", "arriven"]
-        : verb === "buy"
-        ? ["buyed", "bought", "buys", "buying"]
-        : verb === "catch"
-        ? ["catched", "caught", "catches", "catching"]
-        : verb === "earn"
-        ? ["earned", "earnt", "earning", "earns"]
-        : verb === "help"
-        ? ["helped", "help", "helping", "helps"]
-        : verb === "keep"
-        ? ["keeped", "kept", "keeps", "keeping"]
-        : verb === "live"
-        ? ["lived", "live", "living", "lives"]
-        : verb === "run"
-        ? ["runned", "ran", "runs", "running"]
-        : verb === "visit"
-        ? ["visited", "visit", "visiting", "visits"]
-        : ["winned", "won", "wins", "winning"],
-  }));
-
-  const currentGrammar = grammarQuestions[grammarIndex];
-
-  const answerGrammar = (answer: string) => {
-    if (grammarAnswer !== null) return;
-
-    setGrammarAnswer(answer);
-
-    if (answer === currentGrammar?.answer) {
-      setGrammarScore((prev: number) => prev + 1);
-    }
-  };
-
-  const nextGrammar = () => {
-    if (grammarIndex < grammarQuestions.length - 1) {
-      setGrammarIndex((prev: number) => prev + 1);
-      setGrammarAnswer(null);
-    } else {
-      setChallengeIndex(0);
-      setChallengeAnswer(null);
-      setChallengeScore(0);
-      setStage("challenge");
-    }
-  };
-
-  /* =========================================================
-     Challenge
-  ========================================================= */
-
-  const currentChallenge = challenge[challengeIndex];
-
-  const answerChallenge = (answer: string) => {
-    if (challengeAnswer !== null) return;
-
-    setChallengeAnswer(answer);
-
-    if (answer === currentChallenge?.answer) {
-      setChallengeScore((prev: number) => prev + 1);
-    }
-  };
-
-  const nextChallenge = () => {
-    if (challengeIndex < challenge.length - 1) {
-      setChallengeIndex((prev: number) => prev + 1);
-      setChallengeAnswer(null);
-    } else {
-      setStage("result");
-    }
-  };
-
-  /* =========================================================
-     حساب النتيجة
-  ========================================================= */
-
-  const totalQuestions =
-    match.length + grammarQuestions.length + challenge.length;
-
-  const totalScore = matchScore + grammarScore + challengeScore;
-
-  const percentage =
-    totalQuestions > 0
-      ? Math.round((totalScore / totalQuestions) * 100)
-      : 0;
-
-  /* =========================================================
-     شريط المراحل
-  ========================================================= */
-
-  const stages = [
-    { id: "learn", icon: "📖", label: "Learn" },
-    { id: "vocabulary", icon: "🧠", label: "Vocabulary" },
-    { id: "match", icon: "🧩", label: "Match" },
-    { id: "grammar", icon: "🎯", label: "Grammar" },
-    { id: "challenge", icon: "⚡", label: "Challenge" },
-    { id: "result", icon: "🏆", label: "Result" },
-  ];
-
-  const currentStageIndex = stages.findIndex((s) => s.id === stage);
 
   return (
     <div>
-      {/* العودة */}
+      <div style={{ fontSize: "13px", color: "#94a3b8", marginBottom: "10px" }}>
+        🧩 Match ({matched.length}/{pairs.length})
+      </div>
+      <div style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "14px" }}>
+        دوس على الكلمة الإنجليزية، بعدين دوس على معناها الصحيح.
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
+        {pairs.map((p) => {
+          const isMatched = matched.includes(p.term);
+          const isSelected = selectedTerm === p.term;
+          return (
+            <button
+              key={p.term}
+              type="button"
+              disabled={isMatched}
+              onClick={() => handleTermClick(p.term)}
+              style={{
+                padding: "12px",
+                borderRadius: "8px",
+                border: isSelected ? "2px solid #3b82f6" : "1px solid #334155",
+                backgroundColor: isMatched ? "#14532d" : isSelected ? "#1e3a5f" : "#1e293b",
+                color: isMatched ? "#86efac" : "#fff",
+                fontWeight: "bold",
+                fontSize: "15px",
+                textAlign: "center",
+                cursor: isMatched ? "default" : "pointer",
+              }}
+            >
+              {p.term} {isMatched ? "✅" : ""}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {meaningsOrder.map((meaning) => {
+          const termForMeaning = pairs.find((p) => p.meaning === meaning)?.term;
+          const isMatched = !!termForMeaning && matched.includes(termForMeaning);
+          const isWrong = wrongMeaning === meaning;
+          return (
+            <button
+              key={meaning}
+              type="button"
+              disabled={isMatched}
+              onClick={() => handleMeaningClick(meaning)}
+              style={{
+                padding: "12px",
+                borderRadius: "8px",
+                border: isWrong ? "2px solid #ef4444" : "1px solid #334155",
+                backgroundColor: isMatched ? "#14532d" : isWrong ? "#450a0a" : "#0f172a",
+                color: isMatched ? "#86efac" : "#e2e8f0",
+                fontSize: "15px",
+                textAlign: "center",
+                cursor: isMatched ? "default" : "pointer",
+              }}
+            >
+              {meaning} {isMatched ? "✅" : ""}
+            </button>
+          );
+        })}
+      </div>
+
+      {isComplete && (
+        <button
+          type="button"
+          onClick={onComplete}
+          style={{
+            marginTop: "18px",
+            width: "100%",
+            padding: "12px",
+            borderRadius: "8px",
+            border: "none",
+            backgroundColor: "#22c55e",
+            color: "#fff",
+            fontWeight: "bold",
+            cursor: "pointer",
+          }}
+        >
+          🎉 أحسنت! التالي ⬅️
+        </button>
+      )}
+    </div>
+  );
+}
+
+function InteractiveLesson({ lesson, stage, setStage, vocabIndex, setVocabIndex, onExit }: any) {
+  const data = lesson.content_json;
+  const vocab = data.vocabulary || [];
+
+  return (
+    <div>
       <button
         type="button"
         onClick={onExit}
@@ -611,56 +598,25 @@ function InteractiveLesson({
         ➡️ العودة لقائمة الدروس
       </button>
 
-      {/* =====================================================
-          شريط المراحل
-      ===================================================== */}
-
-      <div
-        style={{
-          display: "flex",
-          gap: "4px",
-          marginBottom: "18px",
-          overflowX: "auto",
-          paddingBottom: "5px",
-        }}
-      >
-        {stages.map((item, index) => (
-          <div
-            key={item.id}
-            style={{
-              flex: 1,
-              minWidth: "50px",
-              textAlign: "center",
-              opacity: index <= currentStageIndex ? 1 : 0.45,
-            }}
-          >
-            <div
-              style={{
-                height: "5px",
-                borderRadius: "5px",
-                backgroundColor:
-                  index <= currentStageIndex ? "#3b82f6" : "#334155",
-                marginBottom: "5px",
-              }}
-            />
-
-            <div
-              style={{
-                fontSize: "10px",
-                color:
-                  index === currentStageIndex ? "#fbbf24" : "#94a3b8",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {item.icon} {item.label}
-            </div>
-          </div>
-        ))}
+      <div style={{ display: "flex", gap: "6px", marginBottom: "16px" }}>
+        <div style={{ flex: 1, height: "6px", borderRadius: "3px", backgroundColor: "#3b82f6" }} />
+        <div
+          style={{
+            flex: 1,
+            height: "6px",
+            borderRadius: "3px",
+            backgroundColor: stage === "learn" ? "#334155" : "#3b82f6",
+          }}
+        />
+        <div
+          style={{
+            flex: 1,
+            height: "6px",
+            borderRadius: "3px",
+            backgroundColor: stage === "learn" || stage === "vocabulary" ? "#334155" : "#3b82f6",
+          }}
+        />
       </div>
-
-      {/* =====================================================
-          بطاقة الدرس
-      ===================================================== */}
 
       <div
         style={{
@@ -670,71 +626,21 @@ function InteractiveLesson({
           border: "1px solid #334155",
         }}
       >
-        <div
-          style={{
-            fontSize: "12px",
-            color: "#fbbf24",
-            marginBottom: "8px",
-          }}
-        >
-          {lesson.unit_title}
-        </div>
-
-        <h3
-          style={{
-            color: "#fff",
-            margin: "0 0 16px",
-            fontSize: "20px",
-            lineHeight: 1.5,
-          }}
-        >
-          {lesson.lesson_title}
-        </h3>
-
-        {/* ===================================================
-            LEARN
-        =================================================== */}
+        <div style={{ fontSize: "12px", color: "#fbbf24", marginBottom: "8px" }}>{lesson.unit_title}</div>
+        <h3 style={{ color: "#fff", margin: "0 0 16px", fontSize: "20px", lineHeight: 1.5 }}>{lesson.lesson_title}</h3>
 
         {stage === "learn" && (
           <div>
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#94a3b8",
-                marginBottom: "10px",
-              }}
-            >
-              📖 Learn
-            </div>
-
-            <p
-              style={{
-                color: "#e2e8f0",
-                lineHeight: 1.8,
-                fontWeight: "bold",
-              }}
-            >
-              {data.learn?.intro}
-            </p>
-
+            <div style={{ fontSize: "13px", color: "#94a3b8", marginBottom: "10px" }}>📖 Learn</div>
+            <p style={{ color: "#e2e8f0", lineHeight: 1.8, fontWeight: "bold" }}>{data.learn?.intro}</p>
             {data.learn?.paragraphs?.map((p: string, i: number) => (
-              <p
-                key={i}
-                style={{
-                  color: "#e2e8f0",
-                  lineHeight: 1.8,
-                }}
-              >
+              <p key={i} style={{ color: "#e2e8f0", lineHeight: 1.8 }}>
                 {p}
               </p>
             ))}
-
             <button
               type="button"
-              onClick={() => {
-                setVocabIndex(0);
-                setStage("vocabulary");
-              }}
+              onClick={() => setStage("vocabulary")}
               style={{
                 marginTop: "16px",
                 width: "100%",
@@ -752,22 +658,11 @@ function InteractiveLesson({
           </div>
         )}
 
-        {/* ===================================================
-            VOCABULARY
-        =================================================== */}
-
         {stage === "vocabulary" && vocab.length > 0 && (
           <div>
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#94a3b8",
-                marginBottom: "10px",
-              }}
-            >
+            <div style={{ fontSize: "13px", color: "#94a3b8", marginBottom: "10px" }}>
               🧠 Vocabulary ({vocabIndex + 1}/{vocab.length})
             </div>
-
             <div
               style={{
                 backgroundColor: "#0f172a",
@@ -777,45 +672,18 @@ function InteractiveLesson({
                 border: "1px solid #334155",
               }}
             >
-              <div
-                style={{
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  color: "#fff",
-                  marginBottom: "8px",
-                }}
-              >
+              <div style={{ fontSize: "24px", fontWeight: "bold", color: "#fff", marginBottom: "8px" }}>
                 {vocab[vocabIndex].word}
               </div>
-
-              <div
-                style={{
-                  fontSize: "18px",
-                  color: "#fbbf24",
-                  marginBottom: "12px",
-                }}
-              >
+              <div style={{ fontSize: "18px", color: "#fbbf24", marginBottom: "12px" }}>
                 {vocab[vocabIndex].meaning}
               </div>
-
-              <div
-                style={{
-                  fontSize: "13px",
-                  color: "#94a3b8",
-                  fontStyle: "italic",
-                }}
-              >
+              <div style={{ fontSize: "13px", color: "#94a3b8", fontStyle: "italic" }}>
                 {vocab[vocabIndex].example}
               </div>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: "10px",
-                marginTop: "16px",
-              }}
-            >
+            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
               <button
                 type="button"
                 disabled={vocabIndex === 0}
@@ -827,13 +695,11 @@ function InteractiveLesson({
                   border: "1px solid #334155",
                   backgroundColor: "transparent",
                   color: vocabIndex === 0 ? "#475569" : "#fff",
-                  cursor:
-                    vocabIndex === 0 ? "default" : "pointer",
+                  cursor: vocabIndex === 0 ? "default" : "pointer",
                 }}
               >
                 السابق
               </button>
-
               {vocabIndex < vocab.length - 1 ? (
                 <button
                   type="button"
@@ -854,689 +720,52 @@ function InteractiveLesson({
               ) : (
                 <button
                   type="button"
-                  onClick={startMatch}
+                  onClick={() => setStage("match")}
                   style={{
                     flex: 1,
                     padding: "10px",
                     borderRadius: "8px",
                     border: "none",
-                    backgroundColor: "#8b5cf6",
+                    backgroundColor: "#22c55e",
                     color: "#fff",
                     fontWeight: "bold",
                     cursor: "pointer",
                   }}
                 >
-                  ابدأ المباراة 🧩
+                  التالي: المطابقة ⬅️
                 </button>
               )}
             </div>
           </div>
         )}
 
-        {/* ===================================================
-            MATCH
-        =================================================== */}
-
-        {stage === "match" && match.length > 0 && (
-          <div>
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#94a3b8",
-                marginBottom: "8px",
-              }}
-            >
-              🧩 Match — اختر المعنى الصحيح
-            </div>
-
-            <div
-              style={{
-                fontSize: "12px",
-                color: "#64748b",
-                marginBottom: "15px",
-              }}
-            >
-              السؤال {matchIndex + 1} من {match.length}
-            </div>
-
-            <div
-              style={{
-                backgroundColor: "#0f172a",
-                borderRadius: "12px",
-                padding: "24px 15px",
-                textAlign: "center",
-                border: "1px solid #334155",
-                marginBottom: "14px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "13px",
-                  color: "#94a3b8",
-                  marginBottom: "8px",
-                }}
-              >
-                ما معنى الكلمة؟
-              </div>
-
-              <div
-                style={{
-                  fontSize: "28px",
-                  fontWeight: "900",
-                  color: "#fff",
-                }}
-              >
-                {match[matchIndex].term}
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "9px",
-              }}
-            >
-              {matchOptions.map((option: string, index: number) => {
-                const isSelected = matchSelected === option;
-                const isCorrect =
-                  matchSelected !== null &&
-                  option === match[matchIndex].meaning;
-
-                return (
-                  <button
-                    key={`${option}-${index}`}
-                    type="button"
-                    onClick={() => answerMatch(option)}
-                    style={{
-                      width: "100%",
-                      padding: "13px",
-                      borderRadius: "9px",
-                      border: `1px solid ${
-                        isCorrect
-                          ? "#22c55e"
-                          : isSelected
-                          ? "#ef4444"
-                          : "#334155"
-                      }`,
-                      backgroundColor: isCorrect
-                        ? "#14532d"
-                        : isSelected
-                        ? "#450a0a"
-                        : "#0f172a",
-                      color: "#fff",
-                      fontWeight: "bold",
-                      cursor:
-                        matchSelected !== null
-                          ? "default"
-                          : "pointer",
-                      textAlign: "center",
-                    }}
-                  >
-                    {option}
-                    {isCorrect && " ✅"}
-                    {isSelected && !isCorrect && " ❌"}
-                  </button>
-                );
-              })}
-            </div>
-
-            {matchSelected !== null && (
-              <div
-                style={{
-                  marginTop: "14px",
-                  padding: "12px",
-                  borderRadius: "8px",
-                  backgroundColor: matchCorrect
-                    ? "#14532d"
-                    : "#450a0a",
-                  color: "#fff",
-                  textAlign: "center",
-                  fontSize: "13px",
-                }}
-              >
-                {matchCorrect
-                  ? "ممتاز! إجابة صحيحة 🎉"
-                  : `الإجابة الصحيحة: ${match[matchIndex].meaning}`}
-              </div>
-            )}
-
-            {matchSelected !== null && (
-              <button
-                type="button"
-                onClick={nextMatch}
-                style={{
-                  marginTop: "14px",
-                  width: "100%",
-                  padding: "12px",
-                  borderRadius: "8px",
-                  border: "none",
-                  backgroundColor: "#8b5cf6",
-                  color: "#fff",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                {matchIndex < match.length - 1
-                  ? "التالي ➡️"
-                  : "انتقل إلى القواعد 🎯"}
-              </button>
-            )}
-          </div>
+        {stage === "match" && data.match?.length > 0 && (
+          <MatchGame pairs={data.match} onComplete={() => setStage("done")} />
         )}
 
-        {/* ===================================================
-            GRAMMAR
-        =================================================== */}
-
-        {stage === "grammar" && grammarQuestions.length > 0 && (
-          <div>
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#94a3b8",
-                marginBottom: "8px",
-              }}
-            >
-              🎯 Grammar
+        {stage === "done" && (
+          <div style={{ textAlign: "center", padding: "20px 0" }}>
+            <div style={{ fontSize: "40px", marginBottom: "10px" }}>🎉</div>
+            <div style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "8px" }}>
+              خلصت مراحل Learn و Vocabulary و Match!
             </div>
-
-            <div
-              style={{
-                fontSize: "12px",
-                color: "#64748b",
-                marginBottom: "15px",
-              }}
-            >
-              {grammar.title || "Time for Tenses"} — السؤال{" "}
-              {grammarIndex + 1} من {grammarQuestions.length}
+            <div style={{ fontSize: "13px", color: "#94a3b8", marginBottom: "16px" }}>
+              باقي مراحل الدرس (Grammar، Challenge) هتتضاف قريباً.
             </div>
-
-            <div
-              style={{
-                backgroundColor: "#0f172a",
-                borderRadius: "12px",
-                padding: "20px 15px",
-                border: "1px solid #334155",
-                marginBottom: "14px",
-              }}
-            >
-              <div
-                style={{
-                  color: "#fff",
-                  fontSize: "18px",
-                  fontWeight: "bold",
-                  textAlign: "center",
-                  lineHeight: 1.7,
-                }}
-              >
-                {currentGrammar.question}
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "9px",
-              }}
-            >
-              {currentGrammar.options.map(
-                (option: string, index: number) => {
-                  const correct =
-                    grammarAnswer !== null &&
-                    option === currentGrammar.answer;
-
-                  const selected =
-                    grammarAnswer === option;
-
-                  return (
-                    <button
-                      key={`${option}-${index}`}
-                      type="button"
-                      onClick={() => answerGrammar(option)}
-                      style={{
-                        width: "100%",
-                        padding: "13px",
-                        borderRadius: "9px",
-                        border: `1px solid ${
-                          correct
-                            ? "#22c55e"
-                            : selected
-                            ? "#ef4444"
-                            : "#334155"
-                        }`,
-                        backgroundColor: correct
-                          ? "#14532d"
-                          : selected
-                          ? "#450a0a"
-                          : "#0f172a",
-                        color: "#fff",
-                        fontWeight: "bold",
-                        cursor:
-                          grammarAnswer !== null
-                            ? "default"
-                            : "pointer",
-                      }}
-                    >
-                      {option}
-                      {correct && " ✅"}
-                      {selected && !correct && " ❌"}
-                    </button>
-                  );
-                }
-              )}
-            </div>
-
-            {grammarAnswer !== null && (
-              <button
-                type="button"
-                onClick={nextGrammar}
-                style={{
-                  marginTop: "14px",
-                  width: "100%",
-                  padding: "12px",
-                  borderRadius: "8px",
-                  border: "none",
-                  backgroundColor: "#3b82f6",
-                  color: "#fff",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                {grammarIndex < grammarQuestions.length - 1
-                  ? "التالي ➡️"
-                  : "انتقل إلى التحدي ⚡"}
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* ===================================================
-            CHALLENGE
-        =================================================== */}
-
-        {stage === "challenge" && challenge.length > 0 && (
-          <div>
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#94a3b8",
-                marginBottom: "8px",
-              }}
-            >
-              ⚡ Challenge
-            </div>
-
-            <div
-              style={{
-                fontSize: "12px",
-                color: "#64748b",
-                marginBottom: "15px",
-              }}
-            >
-              السؤال {challengeIndex + 1} من {challenge.length}
-            </div>
-
-            <div
-              style={{
-                backgroundColor: "#0f172a",
-                borderRadius: "12px",
-                padding: "20px 15px",
-                border: "1px solid #334155",
-                marginBottom: "14px",
-              }}
-            >
-              <div
-                style={{
-                  color: "#fff",
-                  fontSize: "17px",
-                  fontWeight: "bold",
-                  lineHeight: 1.8,
-                  textAlign: "center",
-                }}
-              >
-                {currentChallenge.question}
-              </div>
-            </div>
-
-            {currentChallenge.type === "true_false" ? (
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                }}
-              >
-                {["True", "False"].map((option) => {
-                  const correct =
-                    challengeAnswer !== null &&
-                    option === currentChallenge.answer;
-
-                  const selected =
-                    challengeAnswer === option;
-
-                  return (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => answerChallenge(option)}
-                      style={{
-                        flex: 1,
-                        padding: "14px 8px",
-                        borderRadius: "9px",
-                        border: `1px solid ${
-                          correct
-                            ? "#22c55e"
-                            : selected
-                            ? "#ef4444"
-                            : "#334155"
-                        }`,
-                        backgroundColor: correct
-                          ? "#14532d"
-                          : selected
-                          ? "#450a0a"
-                          : "#0f172a",
-                        color: "#fff",
-                        fontWeight: "bold",
-                        cursor:
-                          challengeAnswer !== null
-                            ? "default"
-                            : "pointer",
-                      }}
-                    >
-                      {option}
-                      {correct && " ✅"}
-                      {selected && !correct && " ❌"}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "9px",
-                }}
-              >
-                {(currentChallenge.options || []).map(
-                  (option: string, index: number) => {
-                    const correct =
-                      challengeAnswer !== null &&
-                      option === currentChallenge.answer;
-
-                    const selected =
-                      challengeAnswer === option;
-
-                    return (
-                      <button
-                        key={`${option}-${index}`}
-                        type="button"
-                        onClick={() => answerChallenge(option)}
-                        style={{
-                          width: "100%",
-                          padding: "13px",
-                          borderRadius: "9px",
-                          border: `1px solid ${
-                            correct
-                              ? "#22c55e"
-                              : selected
-                              ? "#ef4444"
-                              : "#334155"
-                          }`,
-                          backgroundColor: correct
-                            ? "#14532d"
-                            : selected
-                            ? "#450a0a"
-                            : "#0f172a",
-                          color: "#fff",
-                          fontWeight: "bold",
-                          cursor:
-                            challengeAnswer !== null
-                              ? "default"
-                              : "pointer",
-                        }}
-                      >
-                        {option}
-                        {correct && " ✅"}
-                        {selected && !correct && " ❌"}
-                      </button>
-                    );
-                  }
-                )}
-              </div>
-            )}
-
-            {challengeAnswer !== null && (
-              <button
-                type="button"
-                onClick={nextChallenge}
-                style={{
-                  marginTop: "14px",
-                  width: "100%",
-                  padding: "12px",
-                  borderRadius: "8px",
-                  border: "none",
-                  backgroundColor: "#f59e0b",
-                  color: "#111827",
-                  fontWeight: "bold",
-                  cursor: "pointer",
-                }}
-              >
-                {challengeIndex < challenge.length - 1
-                  ? "السؤال التالي ➡️"
-                  : "عرض النتيجة 🏆"}
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* ===================================================
-            RESULT
-        =================================================== */}
-
-        {stage === "result" && (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "15px 0 10px",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "58px",
-                marginBottom: "8px",
-              }}
-            >
-              {percentage >= 80
-                ? "🏆"
-                : percentage >= 50
-                ? "🎉"
-                : "💪"}
-            </div>
-
-            <div
-              style={{
-                fontSize: "24px",
-                fontWeight: "900",
-                color: "#fbbf24",
-                marginBottom: "5px",
-              }}
-            >
-              أحسنت!
-            </div>
-
-            <div
-              style={{
-                color: "#cbd5e1",
-                fontSize: "14px",
-                marginBottom: "18px",
-              }}
-            >
-              أكملت درس Trees for Life
-            </div>
-
-            <div
-              style={{
-                backgroundColor: "#0f172a",
-                borderRadius: "14px",
-                padding: "20px",
-                border: "1px solid #334155",
-                marginBottom: "15px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "42px",
-                  fontWeight: "900",
-                  color: "#22c55e",
-                }}
-              >
-                {percentage}%
-              </div>
-
-              <div
-                style={{
-                  color: "#94a3b8",
-                  marginTop: "5px",
-                  fontSize: "13px",
-                }}
-              >
-                {totalScore} من {totalQuestions} إجابة صحيحة
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
-                gap: "7px",
-                marginBottom: "18px",
-              }}
-            >
-              <div
-                style={{
-                  backgroundColor: "#172554",
-                  padding: "10px 5px",
-                  borderRadius: "9px",
-                }}
-              >
-                <div style={{ fontSize: "18px" }}>🧩</div>
-                <div style={{ color: "#fff", fontWeight: "bold" }}>
-                  {matchScore}/{match.length}
-                </div>
-                <div style={{ color: "#94a3b8", fontSize: "10px" }}>
-                  Match
-                </div>
-              </div>
-
-              <div
-                style={{
-                  backgroundColor: "#172554",
-                  padding: "10px 5px",
-                  borderRadius: "9px",
-                }}
-              >
-                <div style={{ fontSize: "18px" }}>🎯</div>
-                <div style={{ color: "#fff", fontWeight: "bold" }}>
-                  {grammarScore}/{grammarQuestions.length}
-                </div>
-                <div style={{ color: "#94a3b8", fontSize: "10px" }}>
-                  Grammar
-                </div>
-              </div>
-
-              <div
-                style={{
-                  backgroundColor: "#172554",
-                  padding: "10px 5px",
-                  borderRadius: "9px",
-                }}
-              >
-                <div style={{ fontSize: "18px" }}>⚡</div>
-                <div style={{ color: "#fff", fontWeight: "bold" }}>
-                  {challengeScore}/{challenge.length}
-                </div>
-                <div style={{ color: "#94a3b8", fontSize: "10px" }}>
-                  Challenge
-                </div>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setMatchIndex(0);
-                setMatchScore(0);
-                setGrammarIndex(0);
-                setGrammarScore(0);
-                setChallengeIndex(0);
-                setChallengeScore(0);
-                setChallengeAnswer(null);
-                setGrammarAnswer(null);
-                setMatchSelected(null);
-                setVocabIndex(0);
-                setStage("learn");
-              }}
-              style={{
-                width: "100%",
-                padding: "13px",
-                borderRadius: "9px",
-                border: "none",
-                backgroundColor: "#3b82f6",
-                color: "#fff",
-                fontWeight: "bold",
-                cursor: "pointer",
-                marginBottom: "9px",
-              }}
-            >
-              إعادة الدرس 🔄
-            </button>
-
             <button
               type="button"
               onClick={onExit}
               style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: "9px",
-                border: "1px solid #334155",
-                backgroundColor: "transparent",
+                padding: "10px 20px",
+                borderRadius: "8px",
+                border: "none",
+                backgroundColor: "#3b82f6",
                 color: "#fff",
                 fontWeight: "bold",
                 cursor: "pointer",
               }}
             >
               العودة لقائمة الدروس
-            </button>
-          </div>
-        )}
-
-        {/* ===================================================
-            في حالة عدم وجود بعض البيانات
-        =================================================== */}
-
-        {stage === "match" && match.length === 0 && (
-          <div style={{ textAlign: "center", padding: "25px" }}>
-            <div style={{ fontSize: "35px" }}>🧩</div>
-            <p style={{ color: "#cbd5e1" }}>
-              لا توجد كلمات للمطابقة لهذا الدرس حالياً.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => setStage("grammar")}
-              style={{
-                width: "100%",
-                padding: "12px",
-                border: "none",
-                borderRadius: "8px",
-                backgroundColor: "#3b82f6",
-                color: "#fff",
-                fontWeight: "bold",
-              }}
-            >
-              متابعة 🎯
             </button>
           </div>
         )}
@@ -1553,17 +782,12 @@ export default function Home() {
   const [track, setTrack] = useState<Track | null>(null);
   const [subject, setSubject] = useState<Subject | null>(null);
 
-  const [tab, setTab] =
-    useState<"books" | "exams" | "lessons">("books");
+  const [tab, setTab] = useState<"books" | "exams" | "lessons">("books");
 
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loadingLessons, setLoadingLessons] = useState(false);
-  const [selectedLesson, setSelectedLesson] =
-    useState<Lesson | null>(null);
-
-  const [lessonStage, setLessonStage] =
-    useState<LessonStage>("learn");
-
+  const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
+  const [lessonStage, setLessonStage] = useState<"learn" | "vocabulary" | "match" | "done">("learn");
   const [vocabIndex, setVocabIndex] = useState(0);
 
   /* =======================================================
@@ -1636,8 +860,6 @@ export default function Home() {
     setTab("books");
     setLessons([]);
     setSelectedLesson(null);
-    setLessonStage("learn");
-    setVocabIndex(0);
   };
 
   /* =======================================================
@@ -1684,6 +906,10 @@ export default function Home() {
             }}
           />
 
+          {/* =================================================
+              زر المسار العلمي
+          ================================================= */}
+
           <button
             type="button"
             onClick={() => setTrack("scientific")}
@@ -1704,6 +930,10 @@ export default function Home() {
             }}
           />
 
+          {/* =================================================
+              زر المسار الأدبي
+          ================================================= */}
+
           <button
             type="button"
             onClick={() => setTrack("literary")}
@@ -1723,6 +953,10 @@ export default function Home() {
               WebkitTapHighlightColor: "transparent",
             }}
           />
+
+          {/* =================================================
+              زر المسار المهني
+          ================================================= */}
 
           <button
             type="button"
@@ -1843,8 +1077,7 @@ export default function Home() {
                     color: "#fff",
                     cursor: "pointer",
                     textAlign: "center",
-                    boxShadow:
-                      "0 5px 15px rgba(0,0,0,0.15)",
+                    boxShadow: "0 5px 15px rgba(0,0,0,0.15)",
                   }}
                 >
                   <div
@@ -1891,6 +1124,7 @@ export default function Home() {
               margin: "0 auto",
             }}
           >
+            {/* العودة */}
             <button
               type="button"
               onClick={() => {
@@ -1898,8 +1132,6 @@ export default function Home() {
                 setTab("books");
                 setLessons([]);
                 setSelectedLesson(null);
-                setLessonStage("learn");
-                setVocabIndex(0);
               }}
               style={{
                 background: "none",
@@ -1915,7 +1147,6 @@ export default function Home() {
             </button>
 
             {/* عنوان المادة */}
-
             <div
               style={{
                 padding: "20px 16px",
@@ -1924,8 +1155,7 @@ export default function Home() {
                 color: "#fff",
                 textAlign: "center",
                 marginBottom: "16px",
-                boxShadow:
-                  "0 8px 25px rgba(0,0,0,0.25)",
+                boxShadow: "0 8px 25px rgba(0,0,0,0.25)",
               }}
             >
               <div
@@ -1973,9 +1203,7 @@ export default function Home() {
                   border: "none",
                   borderRadius: "7px",
                   backgroundColor:
-                    tab === "books"
-                      ? "#3b82f6"
-                      : "transparent",
+                    tab === "books" ? "#3b82f6" : "transparent",
                   color: "#fff",
                   cursor: "pointer",
                   fontWeight: "bold",
@@ -1997,9 +1225,7 @@ export default function Home() {
                   border: "none",
                   borderRadius: "7px",
                   backgroundColor:
-                    tab === "exams"
-                      ? "#3b82f6"
-                      : "transparent",
+                    tab === "exams" ? "#3b82f6" : "transparent",
                   color: "#fff",
                   cursor: "pointer",
                   fontWeight: "bold",
@@ -2021,9 +1247,7 @@ export default function Home() {
                   border: "none",
                   borderRadius: "7px",
                   backgroundColor:
-                    tab === "lessons"
-                      ? "#3b82f6"
-                      : "transparent",
+                    tab === "lessons" ? "#3b82f6" : "transparent",
                   color: "#fff",
                   cursor: "pointer",
                   fontWeight: "bold",
@@ -2056,8 +1280,7 @@ export default function Home() {
                         backgroundColor: "#1e293b",
                         border: "1px solid #334155",
                         display: "flex",
-                        justifyContent:
-                          "space-between",
+                        justifyContent: "space-between",
                         alignItems: "center",
                         gap: "10px",
                       }}
@@ -2138,19 +1361,13 @@ export default function Home() {
                       setStage={setLessonStage}
                       vocabIndex={vocabIndex}
                       setVocabIndex={setVocabIndex}
-                      onExit={() => {
-                        setSelectedLesson(null);
-                        setLessonStage("learn");
-                        setVocabIndex(0);
-                      }}
+                      onExit={() => setSelectedLesson(null)}
                     />
                   ) : (
                     <div>
                       <button
                         type="button"
-                        onClick={() =>
-                          setSelectedLesson(null)
-                        }
+                        onClick={() => setSelectedLesson(null)}
                         style={{
                           background: "none",
                           border: "none",
@@ -2169,8 +1386,7 @@ export default function Home() {
                           backgroundColor: "#1e293b",
                           borderRadius: "12px",
                           padding: "18px",
-                          border:
-                            "1px solid #334155",
+                          border: "1px solid #334155",
                         }}
                       >
                         <div
@@ -2201,8 +1417,7 @@ export default function Home() {
                             fontSize: "15px",
                           }}
                           dangerouslySetInnerHTML={{
-                            __html:
-                              selectedLesson.content,
+                            __html: selectedLesson.content,
                           }}
                         />
                       </div>
@@ -2247,10 +1462,8 @@ export default function Home() {
                         style={{
                           padding: "15px",
                           borderRadius: "10px",
-                          backgroundColor:
-                            "#1e293b",
-                          border:
-                            "1px solid #334155",
+                          backgroundColor: "#1e293b",
+                          border: "1px solid #334155",
                           color: "#fff",
                           textAlign: "right",
                           cursor: "pointer",
@@ -2288,8 +1501,7 @@ export default function Home() {
                       borderRadius: "12px",
                     }}
                   >
-                    لا توجد دروس تفاعلية مضافة حالياً
-                    لهذه المادة.
+                    لا توجد دروس تفاعلية مضافة حالياً لهذه المادة.
                   </div>
                 )}
               </div>
@@ -2299,4 +1511,4 @@ export default function Home() {
       )}
     </main>
   );
-                   }
+}
