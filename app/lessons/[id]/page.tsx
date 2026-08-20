@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "../../supabase";
+
+import { supabase } from "../../../lib/supabase";
 import InteractiveLesson from "../../InteractiveLesson";
 
 import type {
@@ -16,9 +17,14 @@ export default function LessonPage() {
 
   const id = String(params?.id || "");
 
-  const [lesson, setLesson] = useState<Lesson | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [lesson, setLesson] =
+    useState<Lesson | null>(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState(false);
 
   const [stage, setStage] =
     useState<LessonStage>("learn");
@@ -34,12 +40,12 @@ export default function LessonPage() {
       setError(false);
 
       /*
-       * جلب الدرس
+       * جلب الدروس من Supabase
        */
       const { data, error } = await supabase
         .from("lessons")
         .select(
-          "id, subject_id, title, content, content_html, content_json"
+          "id, subject_id, title, content, content_html, content_json, unit_title, lesson_title"
         );
 
       if (error || !data) {
@@ -56,6 +62,10 @@ export default function LessonPage() {
       /*
        * البحث المرن عن الدرس
        */
+      const requestedId = id
+        .toLowerCase()
+        .trim();
+
       const found = data.find((item) => {
         const itemId = String(
           item.id ?? ""
@@ -69,13 +79,23 @@ export default function LessonPage() {
           .toLowerCase()
           .trim();
 
-        const requestedId = id
+        const title = String(
+          item.title ?? ""
+        )
+          .toLowerCase()
+          .trim();
+
+        const lessonTitle = String(
+          item.lesson_title ?? ""
+        )
           .toLowerCase()
           .trim();
 
         return (
           itemId === requestedId ||
           subjectId === requestedId ||
+          title === requestedId ||
+          lessonTitle === requestedId ||
           requestedId.includes(subjectId)
         );
       });
@@ -92,18 +112,26 @@ export default function LessonPage() {
       }
 
       /*
-       * تحويل البيانات إلى الشكل
-       * الذي يحتاجه InteractiveLesson
+       * تحويل بيانات Supabase
+       * إلى الشكل الذي يحتاجه
+       * InteractiveLesson
        */
       const normalizedLesson: Lesson = {
         id: found.id,
-        subject_id: found.subject_id,
 
-        title: found.title,
+        subject_id:
+          found.subject_id,
+
+        title:
+          found.title,
+
         lesson_title:
-          found.title || "Lesson",
+          found.lesson_title ||
+          found.title ||
+          "Lesson",
 
         unit_title:
+          found.unit_title ||
           "Unit 1: Chapter One - Trees",
 
         content:
@@ -116,7 +144,10 @@ export default function LessonPage() {
           found.content_json || {},
       };
 
-      setLesson(normalizedLesson);
+      setLesson(
+        normalizedLesson
+      );
+
       setLoading(false);
     }
 
@@ -124,32 +155,36 @@ export default function LessonPage() {
   }, [id]);
 
   /*
-   * Loading
+   * جاري التحميل
    */
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
         <div className="text-center">
-          <div className="text-4xl mb-3">
+
+          <div className="text-5xl mb-4">
             📖
           </div>
 
           <p className="text-slate-300">
             جاري تحميل الدرس...
           </p>
+
         </div>
       </div>
     );
   }
 
   /*
-   * Error
+   * حدث خطأ
    */
   if (error || !lesson) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
-        <div className="text-center p-8 bg-slate-900 rounded-xl border border-red-500/30">
-          <div className="text-4xl mb-4">
+
+        <div className="text-center p-8 bg-slate-900 rounded-xl border border-red-500/30 max-w-md w-full">
+
+          <div className="text-5xl mb-4">
             😔
           </div>
 
@@ -159,21 +194,26 @@ export default function LessonPage() {
 
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() =>
+              router.back()
+            }
             className="px-5 py-3 rounded-lg bg-blue-600 text-white font-bold"
           >
             ➡️ العودة
           </button>
+
         </div>
+
       </div>
     );
   }
 
   /*
-   * الصفحة التفاعلية
+   * الدرس التفاعلي
    */
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-2 sm:p-6">
+
       <div className="max-w-3xl mx-auto">
 
         <InteractiveLesson
@@ -181,11 +221,16 @@ export default function LessonPage() {
           stage={stage}
           setStage={setStage}
           vocabIndex={vocabIndex}
-          setVocabIndex={setVocabIndex}
-          onExit={() => router.back()}
+          setVocabIndex={
+            setVocabIndex
+          }
+          onExit={() =>
+            router.back()
+          }
         />
 
       </div>
+
     </div>
   );
 }
