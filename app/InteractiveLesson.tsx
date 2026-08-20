@@ -343,7 +343,7 @@ export default function InteractiveLesson({
   ];
 
   /* =======================================================
-     DIRECT STAGE NAVIGATION (محدثة وآمنة للتنقل)
+     DIRECT STAGE NAVIGATION
   ======================================================= */
   const goToStage = (nextStage: LessonStage) => {
     if (nextStage === "vocabulary") {
@@ -393,14 +393,6 @@ export default function InteractiveLesson({
   };
 
   /* =======================================================
-     CURRENT STAGE
-  ======================================================= */
-
-  const currentStageIndex = stages.findIndex(
-    (item) => item.id === stage
-  );
-
-  /* =======================================================
      RENDER
   ======================================================= */
 
@@ -425,7 +417,7 @@ export default function InteractiveLesson({
       </button>
 
       {/* ===================================================
-          STAGE NAVIGATION
+          STAGE NAVIGATION (معدلة ومحمية ضد تحديد النص في الموبايل)
       =================================================== */}
 
       <div
@@ -436,7 +428,7 @@ export default function InteractiveLesson({
           marginBottom: "18px",
         }}
       >
-        {stages.map((item, index) => {
+        {stages.map((item) => {
           const active = item.id === stage;
           const disabled = false;
           
@@ -445,12 +437,18 @@ export default function InteractiveLesson({
               key={item.id}
               type="button"
               disabled={disabled}
-              onClick={() => goToStage(item.id)}
+              onClick={(e) => {
+                e.preventDefault();
+                goToStage(item.id);
+              }}
               style={{
                 position: "relative",
                 minHeight: "58px",
                 padding: "8px 5px",
                 borderRadius: "12px",
+                WebkitUserSelect: "none",
+                userSelect: "none",
+                WebkitTapHighlightColor: "transparent",
 
                 border: active
                   ? "2px solid #fbbf24"
@@ -465,17 +463,11 @@ export default function InteractiveLesson({
                   : "#e2e8f0",
 
                 opacity: disabled ? 0.35 : 1,
-
-                cursor: disabled
-                  ? "not-allowed"
-                  : "pointer",
+                cursor: "pointer",
 
                 boxShadow: active
                   ? "0 0 0 2px rgba(251,191,36,0.12), 0 6px 18px rgba(0,0,0,0.25)"
                   : "0 3px 10px rgba(0,0,0,0.18)",
-
-                transition:
-                  "transform 0.15s ease, border-color 0.15s ease, background 0.15s ease",
               }}
             >
               <div
@@ -483,6 +475,7 @@ export default function InteractiveLesson({
                   fontSize: "21px",
                   lineHeight: 1,
                   marginBottom: "5px",
+                  pointerEvents: "none",
                 }}
               >
                 {item.icon}
@@ -493,26 +486,11 @@ export default function InteractiveLesson({
                   fontSize: "11px",
                   fontWeight: active ? "900" : "700",
                   whiteSpace: "nowrap",
+                  pointerEvents: "none",
                 }}
               >
                 {item.label}
               </div>
-
-              {/* مؤشر قابلية الضغط */}
-
-              {!active && !disabled && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "5px",
-                    right: "7px",
-                    fontSize: "8px",
-                    color: "#64748b",
-                  }}
-                >
-                  ↗
-                </div>
-              )}
             </button>
           );
         })}
