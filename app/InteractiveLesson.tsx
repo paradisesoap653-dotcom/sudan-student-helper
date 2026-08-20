@@ -441,15 +441,8 @@ export default function InteractiveLesson({
       >
         {stages.map((item, index) => {
           const active = item.id === stage;
-
-          const disabled =
-            (item.id === "vocabulary" && vocab.length === 0) ||
-            (item.id === "match" && match.length === 0) ||
-            (item.id === "grammar" &&
-              grammarQuestions.length === 0) ||
-            (item.id === "challenge" &&
-              challenge.length === 0);
-
+const disabled = false;
+          
           return (
             <button
               key={item.id}
@@ -1472,7 +1465,8 @@ function ChallengeStage({
           }}
         >
           {challengeIndex < challengeLength - 1
-            ? "السؤال التالي ➡️"
+            
+                   ? "السؤال التالي ➡️"
             : "عرض النتيجة 🏆"}
         </button>
       )}
@@ -1532,4 +1526,5 @@ function ScoreBox({
       </div>
     </div>
   );
-                }
+}
+  
