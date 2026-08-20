@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
@@ -1611,4 +1610,4 @@ function ScoreBox({
       </div>
     </div>
   );
-        }
+          }
