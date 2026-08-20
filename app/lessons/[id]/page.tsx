@@ -15,7 +15,7 @@ export default function LessonPage() {
   const params = useParams();
   const router = useRouter();
 
-  const id = String(params?.id || "");
+  const id = String(params?.id || "").trim();
 
   const [lesson, setLesson] =
     useState<Lesson | null>(null);
@@ -34,134 +34,161 @@ export default function LessonPage() {
 
   useEffect(() => {
     async function loadLesson() {
-      if (!id) return;
+      if (!id) {
+        setError(true);
+        setLoading(false);
+        return;
+      }
 
       setLoading(true);
       setError(false);
 
-      /*
-       * ==========================================
-       * جلب الدروس من Supabase
-       * ==========================================
-       */
+      try {
+        /*
+         * ==========================================
+         * جلب الدروس
+         * ==========================================
+         */
 
-      const { data, error } = await supabase
-        .from("lessons")
-        .select(
-          "id, subject_id, title, content, content_html, content_json, unit_title, lesson_title"
+        const { data, error } = await supabase
+          .from("lessons")
+          .select(
+            "id, subject_id, title, content, content_html, content_json, unit_title, lesson_title"
+          );
+
+        if (error) {
+          console.error(
+            "Supabase lesson error:",
+            error
+          );
+
+          setError(true);
+          setLoading(false);
+          return;
+        }
+
+        if (!data || data.length === 0) {
+          setError(true);
+          setLoading(false);
+          return;
+        }
+
+        /*
+         * ==========================================
+         * البحث المرن عن الدرس
+         * ==========================================
+         */
+
+        const requestedId = id
+          .toLowerCase()
+          .trim();
+
+        const found = data.find((item) => {
+          const itemId = String(
+            item.id ?? ""
+          )
+            .toLowerCase()
+            .trim();
+
+          const subjectId = String(
+            item.subject_id ?? ""
+          )
+            .toLowerCase()
+            .trim();
+
+          const title = String(
+            item.title ?? ""
+          )
+            .toLowerCase()
+            .trim();
+
+          const lessonTitle = String(
+            item.lesson_title ?? ""
+          )
+            .toLowerCase()
+            .trim();
+
+          return (
+            itemId === requestedId ||
+            subjectId === requestedId ||
+            title === requestedId ||
+            lessonTitle === requestedId ||
+            (subjectId &&
+              requestedId.includes(subjectId))
+          );
+        });
+
+        /*
+         * ==========================================
+         * الدرس غير موجود
+         * ==========================================
+         */
+
+        if (!found) {
+          console.error(
+            "Lesson not found:",
+            id
+          );
+
+          setError(true);
+          setLoading(false);
+          return;
+        }
+
+        /*
+         * ==========================================
+         * تجهيز الدرس
+         * ==========================================
+         */
+
+        const normalizedLesson: Lesson = {
+          id: found.id,
+
+          subject_id:
+            found.subject_id,
+
+          title:
+            found.title,
+
+          lesson_title:
+            found.lesson_title ||
+            found.title ||
+            "Lesson",
+
+          unit_title:
+            found.unit_title ||
+            "Unit 1",
+
+          content:
+            found.content,
+
+          content_html:
+            found.content_html,
+
+          content_json:
+            found.content_json || {},
+        };
+
+        /*
+         * ==========================================
+         * حفظ الدرس
+         * ==========================================
+         */
+
+        setLesson(
+          normalizedLesson
         );
 
-      if (error || !data) {
+        setLoading(false);
+      } catch (err) {
         console.error(
-          "Supabase lesson error:",
-          error
+          "Unexpected lesson error:",
+          err
         );
 
         setError(true);
         setLoading(false);
-        return;
       }
-
-      /*
-       * ==========================================
-       * البحث المرن عن الدرس
-       * ==========================================
-       */
-
-      const requestedId = id
-        .toLowerCase()
-        .trim();
-
-      const found = data.find((item) => {
-        const itemId = String(
-          item.id ?? ""
-        )
-          .toLowerCase()
-          .trim();
-
-        const subjectId = String(
-          item.subject_id ?? ""
-        )
-          .toLowerCase()
-          .trim();
-
-        const title = String(
-          item.title ?? ""
-        )
-          .toLowerCase()
-          .trim();
-
-        const lessonTitle = String(
-          item.lesson_title ?? ""
-        )
-          .toLowerCase()
-          .trim();
-
-        return (
-          itemId === requestedId ||
-          subjectId === requestedId ||
-          title === requestedId ||
-          lessonTitle === requestedId ||
-          requestedId.includes(subjectId)
-        );
-      });
-
-      /*
-       * ==========================================
-       * الدرس غير موجود
-       * ==========================================
-       */
-
-      if (!found) {
-        console.error(
-          "Lesson not found:",
-          id
-        );
-
-        setError(true);
-        setLoading(false);
-        return;
-      }
-
-      /*
-       * ==========================================
-       * تجهيز الدرس للنظام التفاعلي
-       * ==========================================
-       */
-
-      const normalizedLesson: Lesson = {
-        id: found.id,
-
-        subject_id:
-          found.subject_id,
-
-        title:
-          found.title,
-
-        lesson_title:
-          found.lesson_title ||
-          found.title ||
-          "Lesson",
-
-        unit_title:
-          found.unit_title ||
-          "Unit 1: Chapter One - Trees",
-
-        content:
-          found.content,
-
-        content_html:
-          found.content_html,
-
-        content_json:
-          found.content_json || {},
-      };
-
-      setLesson(
-        normalizedLesson
-      );
-
-      setLoading(false);
     }
 
     loadLesson();
@@ -169,14 +196,13 @@ export default function LessonPage() {
 
   /*
    * ==========================================
-   * شاشة التحميل
+   * Loading
    * ==========================================
    */
 
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
-
         <div className="text-center">
 
           <div className="text-5xl mb-4">
@@ -188,14 +214,13 @@ export default function LessonPage() {
           </p>
 
         </div>
-
       </div>
     );
   }
 
   /*
    * ==========================================
-   * شاشة الخطأ
+   * Error
    * ==========================================
    */
 
@@ -231,7 +256,7 @@ export default function LessonPage() {
 
   /*
    * ==========================================
-   * تشغيل الدرس التفاعلي
+   * Interactive Lesson
    * ==========================================
    */
 
