@@ -1,6 +1,9 @@
+
+
+
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 
 /* =========================================================
@@ -449,133 +452,6 @@ const SUBJECTS: Record<Track, Subject[]> = {
    مكوّن الدرس التفاعلي
 ========================================================= */
 
-function shuffleArray<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-function MatchGame({ pairs, onComplete }: { pairs: { term: string; meaning: string }[]; onComplete: () => void }) {
-  const meaningsOrder = useMemo(() => shuffleArray(pairs.map((p) => p.meaning)), [pairs]);
-  const [selectedTerm, setSelectedTerm] = useState<string | null>(null);
-  const [matched, setMatched] = useState<string[]>([]);
-  const [wrongMeaning, setWrongMeaning] = useState<string | null>(null);
-
-  const isComplete = matched.length === pairs.length;
-
-  const handleTermClick = (term: string) => {
-    if (matched.includes(term)) return;
-    setSelectedTerm(term);
-    setWrongMeaning(null);
-  };
-
-  const handleMeaningClick = (meaning: string) => {
-    if (!selectedTerm) return;
-    const matchedTermForMeaning = pairs.find((p) => p.meaning === meaning)?.term;
-    if (matchedTermForMeaning && matched.includes(matchedTermForMeaning)) return;
-
-    const correctMeaning = pairs.find((p) => p.term === selectedTerm)?.meaning;
-    if (meaning === correctMeaning) {
-      setMatched([...matched, selectedTerm]);
-      setSelectedTerm(null);
-      setWrongMeaning(null);
-    } else {
-      setWrongMeaning(meaning);
-      setTimeout(() => setWrongMeaning(null), 500);
-    }
-  };
-
-  return (
-    <div>
-      <div style={{ fontSize: "13px", color: "#94a3b8", marginBottom: "10px" }}>
-        🧩 Match ({matched.length}/{pairs.length})
-      </div>
-      <div style={{ fontSize: "12px", color: "#94a3b8", marginBottom: "14px" }}>
-        دوس على الكلمة الإنجليزية، بعدين دوس على معناها الصحيح.
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
-        {pairs.map((p) => {
-          const isMatched = matched.includes(p.term);
-          const isSelected = selectedTerm === p.term;
-          return (
-            <button
-              key={p.term}
-              type="button"
-              disabled={isMatched}
-              onClick={() => handleTermClick(p.term)}
-              style={{
-                padding: "12px",
-                borderRadius: "8px",
-                border: isSelected ? "2px solid #3b82f6" : "1px solid #334155",
-                backgroundColor: isMatched ? "#14532d" : isSelected ? "#1e3a5f" : "#1e293b",
-                color: isMatched ? "#86efac" : "#fff",
-                fontWeight: "bold",
-                fontSize: "15px",
-                textAlign: "center",
-                cursor: isMatched ? "default" : "pointer",
-              }}
-            >
-              {p.term} {isMatched ? "✅" : ""}
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-        {meaningsOrder.map((meaning) => {
-          const termForMeaning = pairs.find((p) => p.meaning === meaning)?.term;
-          const isMatched = !!termForMeaning && matched.includes(termForMeaning);
-          const isWrong = wrongMeaning === meaning;
-          return (
-            <button
-              key={meaning}
-              type="button"
-              disabled={isMatched}
-              onClick={() => handleMeaningClick(meaning)}
-              style={{
-                padding: "12px",
-                borderRadius: "8px",
-                border: isWrong ? "2px solid #ef4444" : "1px solid #334155",
-                backgroundColor: isMatched ? "#14532d" : isWrong ? "#450a0a" : "#0f172a",
-                color: isMatched ? "#86efac" : "#e2e8f0",
-                fontSize: "15px",
-                textAlign: "center",
-                cursor: isMatched ? "default" : "pointer",
-              }}
-            >
-              {meaning} {isMatched ? "✅" : ""}
-            </button>
-          );
-        })}
-      </div>
-
-      {isComplete && (
-        <button
-          type="button"
-          onClick={onComplete}
-          style={{
-            marginTop: "18px",
-            width: "100%",
-            padding: "12px",
-            borderRadius: "8px",
-            border: "none",
-            backgroundColor: "#22c55e",
-            color: "#fff",
-            fontWeight: "bold",
-            cursor: "pointer",
-          }}
-        >
-          🎉 أحسنت! التالي ⬅️
-        </button>
-      )}
-    </div>
-  );
-}
-
 function InteractiveLesson({ lesson, stage, setStage, vocabIndex, setVocabIndex, onExit }: any) {
   const data = lesson.content_json;
   const vocab = data.vocabulary || [];
@@ -606,14 +482,6 @@ function InteractiveLesson({ lesson, stage, setStage, vocabIndex, setVocabIndex,
             height: "6px",
             borderRadius: "3px",
             backgroundColor: stage === "learn" ? "#334155" : "#3b82f6",
-          }}
-        />
-        <div
-          style={{
-            flex: 1,
-            height: "6px",
-            borderRadius: "3px",
-            backgroundColor: stage === "learn" || stage === "vocabulary" ? "#334155" : "#3b82f6",
           }}
         />
       </div>
@@ -720,7 +588,7 @@ function InteractiveLesson({ lesson, stage, setStage, vocabIndex, setVocabIndex,
               ) : (
                 <button
                   type="button"
-                  onClick={() => setStage("match")}
+                  onClick={() => setStage("done")}
                   style={{
                     flex: 1,
                     padding: "10px",
@@ -732,25 +600,21 @@ function InteractiveLesson({ lesson, stage, setStage, vocabIndex, setVocabIndex,
                     cursor: "pointer",
                   }}
                 >
-                  التالي: المطابقة ⬅️
+                  إنهاء ✅
                 </button>
               )}
             </div>
           </div>
         )}
 
-        {stage === "match" && data.match?.length > 0 && (
-          <MatchGame pairs={data.match} onComplete={() => setStage("done")} />
-        )}
-
         {stage === "done" && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
             <div style={{ fontSize: "40px", marginBottom: "10px" }}>🎉</div>
             <div style={{ fontSize: "16px", fontWeight: "bold", color: "#fff", marginBottom: "8px" }}>
-              خلصت مراحل Learn و Vocabulary و Match!
+              خلصت مرحلتي Learn و Vocabulary!
             </div>
             <div style={{ fontSize: "13px", color: "#94a3b8", marginBottom: "16px" }}>
-              باقي مراحل الدرس (Grammar، Challenge) هتتضاف قريباً.
+              باقي مراحل الدرس (Match، Grammar، Challenge) هتتضاف قريباً.
             </div>
             <button
               type="button"
@@ -787,7 +651,7 @@ export default function Home() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [loadingLessons, setLoadingLessons] = useState(false);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
-  const [lessonStage, setLessonStage] = useState<"learn" | "vocabulary" | "match" | "done">("learn");
+  const [lessonStage, setLessonStage] = useState<"learn" | "vocabulary" | "done">("learn");
   const [vocabIndex, setVocabIndex] = useState(0);
 
   /* =======================================================
@@ -1512,3 +1376,4 @@ export default function Home() {
     </main>
   );
 }
+            
