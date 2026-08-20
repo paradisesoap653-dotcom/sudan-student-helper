@@ -1,61 +1,189 @@
-import { createClient } from '@supabase/supabase-js';
+"use client";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { supabase } from "../../supabase";
+import InteractiveLesson from "../../InteractiveLesson";
 
-export default async function LessonPage(props) {
-  const params = await props.params;
-  const paramValue = String(params.id || params.slug || Object.values(params)[0]).toLowerCase().trim();
+import type {
+  Lesson,
+  LessonStage,
+} from "../../lessonTypes";
 
-  // جلب كل الحقول الممكنة للتحقق المرن
-  const { data: lessons, error } = await supabase
-    .from('lessons')
-    .select('id, subject_id, title, content, content_html');
+export default function LessonPage() {
+  const params = useParams();
+  const router = useRouter();
 
-  if (error || !lessons || lessons.length === 0) {
+  const id = String(params?.id || "");
+
+  const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const [stage, setStage] =
+    useState<LessonStage>("learn");
+
+  const [vocabIndex, setVocabIndex] =
+    useState(0);
+
+  useEffect(() => {
+    async function loadLesson() {
+      if (!id) return;
+
+      setLoading(true);
+      setError(false);
+
+      /*
+       * جلب الدرس
+       */
+      const { data, error } = await supabase
+        .from("lessons")
+        .select(
+          "id, subject_id, title, content, content_html, content_json"
+        );
+
+      if (error || !data) {
+        console.error(
+          "Supabase lesson error:",
+          error
+        );
+
+        setError(true);
+        setLoading(false);
+        return;
+      }
+
+      /*
+       * البحث المرن عن الدرس
+       */
+      const found = data.find((item) => {
+        const itemId = String(
+          item.id ?? ""
+        )
+          .toLowerCase()
+          .trim();
+
+        const subjectId = String(
+          item.subject_id ?? ""
+        )
+          .toLowerCase()
+          .trim();
+
+        const requestedId = id
+          .toLowerCase()
+          .trim();
+
+        return (
+          itemId === requestedId ||
+          subjectId === requestedId ||
+          requestedId.includes(subjectId)
+        );
+      });
+
+      if (!found) {
+        console.error(
+          "Lesson not found:",
+          id
+        );
+
+        setError(true);
+        setLoading(false);
+        return;
+      }
+
+      /*
+       * تحويل البيانات إلى الشكل
+       * الذي يحتاجه InteractiveLesson
+       */
+      const normalizedLesson: Lesson = {
+        id: found.id,
+        subject_id: found.subject_id,
+
+        title: found.title,
+        lesson_title:
+          found.title || "Lesson",
+
+        unit_title:
+          "Unit 1: Chapter One - Trees",
+
+        content:
+          found.content,
+
+        content_html:
+          found.content_html,
+
+        content_json:
+          found.content_json || {},
+      };
+
+      setLesson(normalizedLesson);
+      setLoading(false);
+    }
+
+    loadLesson();
+  }, [id]);
+
+  /*
+   * Loading
+   */
+  if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
-        <div className="text-center p-8 bg-slate-900 rounded-xl border border-red-500/30">
-          <p className="text-red-400 font-bold text-lg">عذراً، قاعدة البيانات غير متصلة حالياً!</p>
-        </div>
-      </div>
-    );
-  }
-
-  // البحث عن السطر المطابق بمرونة كاملة (سواء بالرابط الرقمي أو النصي)
-  const lesson = lessons.find(l => 
-    String(l.id) === paramValue || 
-    String(l.subject_id).toLowerCase().trim() === paramValue ||
-    paramValue.includes(String(l.subject_id).toLowerCase().trim())
-  );
-
-  if (!lesson) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
-        <div className="text-center p-8 bg-slate-900 rounded-xl border border-red-500/30">
-          <p className="text-red-400 font-bold text-lg">عذراً، هذا الدرس غير متوفر حالياً في النظام!</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-slate-955 text-slate-100 p-2 sm:p-6">
-      <div className="max-w-3xl mx-auto">
-        
-        {lesson.content_html ? (
-          <div 
-            className="w-full overflow-hidden rounded-xl bg-white text-slate-900"
-            dangerouslySetInnerHTML={{ __html: lesson.content_html }} 
-          />
-        ) : (
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
-            <h1 className="text-2xl font-black text-amber-400 mb-4">{lesson.title}</h1>
-            <p className="text-slate-300 leading-relaxed whitespace-pre-line text-lg">{lesson.content}</p>
+        <div className="text-center">
+          <div className="text-4xl mb-3">
+            📖
           </div>
-        )}
+
+          <p className="text-slate-300">
+            جاري تحميل الدرس...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * Error
+   */
+  if (error || !lesson) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+        <div className="text-center p-8 bg-slate-900 rounded-xl border border-red-500/30">
+          <div className="text-4xl mb-4">
+            😔
+          </div>
+
+          <p className="text-red-400 font-bold text-lg mb-4">
+            عذراً، هذا الدرس غير متوفر حالياً!
+          </p>
+
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="px-5 py-3 rounded-lg bg-blue-600 text-white font-bold"
+          >
+            ➡️ العودة
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * الصفحة التفاعلية
+   */
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 p-2 sm:p-6">
+      <div className="max-w-3xl mx-auto">
+
+        <InteractiveLesson
+          lesson={lesson}
+          stage={stage}
+          setStage={setStage}
+          vocabIndex={vocabIndex}
+          setVocabIndex={setVocabIndex}
+          onExit={() => router.back()}
+        />
 
       </div>
     </div>
