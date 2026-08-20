@@ -117,43 +117,102 @@ export default function InteractiveLesson({
     > = {
       arrive: {
         answer: "arrived",
-        options: ["arrived", "arrive", "arriving", "arriven"],
+        options: [
+          "arrived",
+          "arrive",
+          "arriving",
+          "arriven",
+        ],
       },
+
       buy: {
         answer: "bought",
-        options: ["buyed", "bought", "buys", "buying"],
+        options: [
+          "buyed",
+          "bought",
+          "buys",
+          "buying",
+        ],
       },
+
       catch: {
         answer: "caught",
-        options: ["catched", "caught", "catches", "catching"],
+        options: [
+          "catched",
+          "caught",
+          "catches",
+          "catching",
+        ],
       },
+
       earn: {
         answer: "earned",
-        options: ["earned", "earnt", "earning", "earns"],
+        options: [
+          "earned",
+          "earnt",
+          "earning",
+          "earns",
+        ],
       },
+
       help: {
         answer: "helped",
-        options: ["helped", "help", "helping", "helps"],
+        options: [
+          "helped",
+          "help",
+          "helping",
+          "helps",
+        ],
       },
+
       keep: {
         answer: "kept",
-        options: ["keeped", "kept", "keeps", "keeping"],
+        options: [
+          "keeped",
+          "kept",
+          "keeps",
+          "keeping",
+        ],
       },
+
       live: {
         answer: "lived",
-        options: ["lived", "live", "living", "lives"],
+        options: [
+          "lived",
+          "live",
+          "living",
+          "lives",
+        ],
       },
+
       run: {
         answer: "ran",
-        options: ["runned", "ran", "runs", "running"],
+        options: [
+          "runned",
+          "ran",
+          "runs",
+          "running",
+        ],
       },
+
       visit: {
         answer: "visited",
-        options: ["visited", "visit", "visiting", "visits"],
+        options: [
+          "visited",
+          "visit",
+          "visiting",
+          "visits",
+        ],
       },
+
       win: {
         answer: "won",
-        options: ["winned", "won", "wins", "winning"],
+        options: [
+          "winned",
+          "won",
+          "wins",
+          "winning",
+        ],
       },
     };
 
@@ -354,11 +413,6 @@ export default function InteractiveLesson({
     },
   ];
 
-  const currentStageIndex =
-    stages.findIndex(
-      (item) => item.id === stage
-    );
-
   /* =======================================================
      Reset Lesson
   ======================================================= */
@@ -388,7 +442,10 @@ export default function InteractiveLesson({
 
   return (
     <div>
-      {/* العودة */}
+
+      {/* =================================================
+          العودة
+      ================================================= */}
 
       <button
         type="button"
@@ -406,92 +463,120 @@ export default function InteractiveLesson({
         ➡️ العودة لقائمة الدروس
       </button>
 
-      {/* ===================================================
-          Stage Navigation
-      =================================================== */}
+      {/* =================================================
+          Interactive Navigation
+      ================================================= */}
 
       <div
         style={{
-          display: "flex",
-          gap: "8px",
           marginBottom: "18px",
-          overflowX: "auto",
-          padding: "4px 2px 8px",
-          scrollbarWidth: "thin",
         }}
       >
-        {stages.map((item, index) => {
-          const isActive =
-            index === currentStageIndex;
 
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() =>
-                setStage(item.id)
-              }
-              aria-label={`فتح ${item.label}`}
-              style={{
-                flex: "0 0 auto",
-                minWidth: "92px",
-                padding: "10px 9px",
-                borderRadius: "12px",
-                border: isActive
-                  ? "2px solid #fbbf24"
-                  : "1px solid #475569",
-                backgroundColor: isActive
-                  ? "#1e3a5f"
-                  : "#0f172a",
-                color: isActive
-                  ? "#fbbf24"
-                  : "#cbd5e1",
-                cursor: "pointer",
-                fontWeight: isActive
-                  ? "800"
-                  : "600",
-                fontSize: "12px",
-                boxShadow: isActive
-                  ? "0 0 0 2px rgba(251,191,36,0.12)"
-                  : "none",
-                transition:
-                  "all 0.15s ease",
-              }}
-            >
-              <div
+        <div
+          style={{
+            textAlign: "center",
+            color: "#94a3b8",
+            fontSize: "11px",
+            marginBottom: "8px",
+          }}
+        >
+          👆 اضغط على أي قسم للانتقال إليه مباشرة
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "repeat(3, minmax(0, 1fr))",
+            gap: "7px",
+          }}
+        >
+
+          {stages.map((item) => {
+
+            const isActive =
+              item.id === stage;
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() =>
+                  setStage(item.id)
+                }
                 style={{
-                  fontSize: "20px",
-                  marginBottom: "4px",
+                  position: "relative",
+                  padding: "10px 5px",
+                  borderRadius: "10px",
+
+                  border: isActive
+                    ? "2px solid #f59e0b"
+                    : "1px solid #475569",
+
+                  backgroundColor:
+                    isActive
+                      ? "#451a03"
+                      : "#0f172a",
+
+                  color: isActive
+                    ? "#fbbf24"
+                    : "#cbd5e1",
+
+                  cursor: "pointer",
+
+                  fontWeight: isActive
+                    ? "900"
+                    : "700",
+
+                  fontSize: "11px",
+
+                  transition:
+                    "all 0.2s ease",
+
+                  boxShadow: isActive
+                    ? "0 0 12px rgba(245,158,11,0.20)"
+                    : "none",
                 }}
               >
-                {item.icon}
-              </div>
 
-              <div
-                style={{
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {item.label}
-              </div>
+                <div
+                  style={{
+                    fontSize: "18px",
+                    marginBottom: "3px",
+                  }}
+                >
+                  {item.icon}
+                </div>
 
-              <div
-                style={{
-                  fontSize: "9px",
-                  marginTop: "3px",
-                  opacity: 0.7,
-                }}
-              >
-                اضغط للفتح
-              </div>
-            </button>
-          );
-        })}
+                <div>
+                  {item.label}
+                </div>
+
+                {isActive && (
+                  <div
+                    style={{
+                      position:
+                        "absolute",
+                      top: "3px",
+                      right: "5px",
+                      fontSize: "8px",
+                    }}
+                  >
+                    ●
+                  </div>
+                )}
+
+              </button>
+            );
+          })}
+
+        </div>
       </div>
 
-      {/* ===================================================
+      {/* =================================================
           Lesson Card
-      =================================================== */}
+      ================================================= */}
 
       <div
         style={{
@@ -501,6 +586,7 @@ export default function InteractiveLesson({
           border: "1px solid #334155",
         }}
       >
+
         <div
           style={{
             fontSize: "12px",
@@ -528,6 +614,7 @@ export default function InteractiveLesson({
 
         {stage === "learn" && (
           <div>
+
             <div
               style={{
                 fontSize: "13px",
@@ -582,6 +669,7 @@ export default function InteractiveLesson({
             >
               التالي: المفردات ⬅️
             </button>
+
           </div>
         )}
 
@@ -592,6 +680,7 @@ export default function InteractiveLesson({
         {stage === "vocabulary" &&
           vocab.length > 0 && (
             <div>
+
               <div
                 style={{
                   fontSize: "13px",
@@ -612,6 +701,7 @@ export default function InteractiveLesson({
                   border: "1px solid #334155",
                 }}
               >
+
                 <div
                   style={{
                     fontSize: "24px",
@@ -642,6 +732,7 @@ export default function InteractiveLesson({
                 >
                   {vocab[vocabIndex].example}
                 </div>
+
               </div>
 
               <div
@@ -651,6 +742,7 @@ export default function InteractiveLesson({
                   marginTop: "16px",
                 }}
               >
+
                 <button
                   type="button"
                   disabled={vocabIndex === 0}
@@ -722,6 +814,7 @@ export default function InteractiveLesson({
                     ابدأ المباراة 🧩
                   </button>
                 )}
+
               </div>
             </div>
           )}
@@ -733,6 +826,7 @@ export default function InteractiveLesson({
         {stage === "match" &&
           match.length > 0 && (
             <div>
+
               <div
                 style={{
                   fontSize: "13px",
@@ -756,8 +850,7 @@ export default function InteractiveLesson({
 
               <div
                 style={{
-                  backgroundColor:
-                    "#0f172a",
+                  backgroundColor: "#0f172a",
                   borderRadius: "12px",
                   padding: "24px 15px",
                   textAlign: "center",
@@ -766,6 +859,7 @@ export default function InteractiveLesson({
                   marginBottom: "14px",
                 }}
               >
+
                 <div
                   style={{
                     fontSize: "13px",
@@ -785,6 +879,7 @@ export default function InteractiveLesson({
                 >
                   {match[matchIndex].term}
                 </div>
+
               </div>
 
               <div
@@ -794,8 +889,10 @@ export default function InteractiveLesson({
                   gap: "9px",
                 }}
               >
+
                 {matchOptions.map(
                   (option, index) => {
+
                     const isSelected =
                       matchSelected ===
                       option;
@@ -818,6 +915,7 @@ export default function InteractiveLesson({
                           width: "100%",
                           padding: "13px",
                           borderRadius: "9px",
+
                           border: `1px solid ${
                             isCorrect
                               ? "#22c55e"
@@ -825,14 +923,17 @@ export default function InteractiveLesson({
                               ? "#ef4444"
                               : "#334155"
                           }`,
+
                           backgroundColor:
                             isCorrect
                               ? "#14532d"
                               : isSelected
                               ? "#450a0a"
                               : "#0f172a",
+
                           color: "#fff",
                           fontWeight: "bold",
+
                           cursor:
                             matchSelected !==
                             null
@@ -852,6 +953,7 @@ export default function InteractiveLesson({
                     );
                   }
                 )}
+
               </div>
 
               {matchSelected !== null && (
@@ -898,6 +1000,7 @@ export default function InteractiveLesson({
                     : "انتقل إلى القواعد 🎯"}
                 </button>
               )}
+
             </div>
           )}
 
@@ -908,6 +1011,7 @@ export default function InteractiveLesson({
         {stage === "grammar" &&
           grammarQuestions.length > 0 && (
             <div>
+
               <div
                 style={{
                   fontSize: "13px",
@@ -933,8 +1037,7 @@ export default function InteractiveLesson({
 
               <div
                 style={{
-                  backgroundColor:
-                    "#0f172a",
+                  backgroundColor: "#0f172a",
                   borderRadius: "12px",
                   padding: "20px 15px",
                   border:
@@ -942,6 +1045,7 @@ export default function InteractiveLesson({
                   marginBottom: "14px",
                 }}
               >
+
                 <div
                   style={{
                     color: "#fff",
@@ -953,6 +1057,7 @@ export default function InteractiveLesson({
                 >
                   {currentGrammar.question}
                 </div>
+
               </div>
 
               <div
@@ -962,8 +1067,10 @@ export default function InteractiveLesson({
                   gap: "9px",
                 }}
               >
+
                 {currentGrammar.options.map(
                   (option, index) => {
+
                     const correct =
                       grammarAnswer !==
                         null &&
@@ -987,6 +1094,7 @@ export default function InteractiveLesson({
                           width: "100%",
                           padding: "13px",
                           borderRadius: "9px",
+
                           border: `1px solid ${
                             correct
                               ? "#22c55e"
@@ -994,14 +1102,17 @@ export default function InteractiveLesson({
                               ? "#ef4444"
                               : "#334155"
                           }`,
+
                           backgroundColor:
                             correct
                               ? "#14532d"
                               : selected
                               ? "#450a0a"
                               : "#0f172a",
+
                           color: "#fff",
                           fontWeight: "bold",
+
                           cursor:
                             grammarAnswer !==
                             null
@@ -1021,6 +1132,7 @@ export default function InteractiveLesson({
                     );
                   }
                 )}
+
               </div>
 
               {grammarAnswer !== null && (
@@ -1041,12 +1153,12 @@ export default function InteractiveLesson({
                   }}
                 >
                   {grammarIndex <
-                  grammarQuestions.length -
-                    1
+                  grammarQuestions.length - 1
                     ? "التالي ➡️"
                     : "انتقل إلى التحدي ⚡"}
                 </button>
               )}
+
             </div>
           )}
 
@@ -1090,6 +1202,7 @@ export default function InteractiveLesson({
                 "15px 0 10px",
             }}
           >
+
             <div
               style={{
                 fontSize: "58px",
@@ -1136,6 +1249,7 @@ export default function InteractiveLesson({
                 marginBottom: "15px",
               }}
             >
+
               <div
                 style={{
                   fontSize: "42px",
@@ -1157,6 +1271,7 @@ export default function InteractiveLesson({
                 {totalQuestions}{" "}
                 إجابة صحيحة
               </div>
+
             </div>
 
             <div
@@ -1168,6 +1283,7 @@ export default function InteractiveLesson({
                 marginBottom: "18px",
               }}
             >
+
               <ScoreBox
                 icon="🧩"
                 score={matchScore}
@@ -1190,6 +1306,7 @@ export default function InteractiveLesson({
                 total={challenge.length}
                 label="Challenge"
               />
+
             </div>
 
             <button
@@ -1229,6 +1346,7 @@ export default function InteractiveLesson({
             >
               العودة لقائمة الدروس
             </button>
+
           </div>
         )}
 
@@ -1244,6 +1362,7 @@ export default function InteractiveLesson({
                 padding: "25px",
               }}
             >
+
               <div
                 style={{
                   fontSize: "35px",
@@ -1279,8 +1398,10 @@ export default function InteractiveLesson({
               >
                 متابعة 🎯
               </button>
+
             </div>
           )}
+
       </div>
     </div>
   );
@@ -1323,6 +1444,7 @@ function ChallengeStage({
 
   return (
     <div>
+
       <div
         style={{
           fontSize: "13px",
@@ -1354,6 +1476,7 @@ function ChallengeStage({
           marginBottom: "14px",
         }}
       >
+
         <div
           style={{
             color: "#fff",
@@ -1365,7 +1488,10 @@ function ChallengeStage({
         >
           {currentChallenge.question}
         </div>
+
       </div>
+
+      {/* True / False */}
 
       {currentChallenge.type ===
       "true_false" ? (
@@ -1375,8 +1501,10 @@ function ChallengeStage({
             gap: "10px",
           }}
         >
+
           {["True", "False"].map(
             (option) => {
+
               const correct =
                 challengeAnswer !== null &&
                 option ===
@@ -1399,6 +1527,7 @@ function ChallengeStage({
                     flex: 1,
                     padding: "14px 8px",
                     borderRadius: "9px",
+
                     border: `1px solid ${
                       correct
                         ? "#22c55e"
@@ -1406,14 +1535,17 @@ function ChallengeStage({
                         ? "#ef4444"
                         : "#334155"
                     }`,
+
                     backgroundColor:
                       correct
                         ? "#14532d"
                         : selected
                         ? "#450a0a"
                         : "#0f172a",
+
                     color: "#fff",
                     fontWeight: "bold",
+
                     cursor:
                       challengeAnswer !==
                       null
@@ -1423,7 +1555,8 @@ function ChallengeStage({
                 >
                   {option}
 
-                  {correct && " ✅"}
+                  {correct &&
+                    " ✅"}
 
                   {selected &&
                     !correct &&
@@ -1432,6 +1565,7 @@ function ChallengeStage({
               );
             }
           )}
+
         </div>
       ) : (
         <div
@@ -1441,9 +1575,11 @@ function ChallengeStage({
             gap: "9px",
           }}
         >
+
           {(currentChallenge.options ||
             []).map(
             (option, index) => {
+
               const correct =
                 challengeAnswer !== null &&
                 option ===
@@ -1466,6 +1602,7 @@ function ChallengeStage({
                     width: "100%",
                     padding: "13px",
                     borderRadius: "9px",
+
                     border: `1px solid ${
                       correct
                         ? "#22c55e"
@@ -1473,14 +1610,17 @@ function ChallengeStage({
                         ? "#ef4444"
                         : "#334155"
                     }`,
+
                     backgroundColor:
                       correct
                         ? "#14532d"
                         : selected
                         ? "#450a0a"
                         : "#0f172a",
+
                     color: "#fff",
                     fontWeight: "bold",
+
                     cursor:
                       challengeAnswer !==
                       null
@@ -1490,7 +1630,8 @@ function ChallengeStage({
                 >
                   {option}
 
-                  {correct && " ✅"}
+                  {correct &&
+                    " ✅"}
 
                   {selected &&
                     !correct &&
@@ -1499,6 +1640,7 @@ function ChallengeStage({
               );
             }
           )}
+
         </div>
       )}
 
@@ -1525,6 +1667,7 @@ function ChallengeStage({
             : "عرض النتيجة 🏆"}
         </button>
       )}
+
     </div>
   );
 }
@@ -1555,6 +1698,7 @@ function ScoreBox({
         borderRadius: "9px",
       }}
     >
+
       <div
         style={{
           fontSize: "18px",
@@ -1580,6 +1724,7 @@ function ScoreBox({
       >
         {label}
       </div>
+
     </div>
   );
-}
+      }
