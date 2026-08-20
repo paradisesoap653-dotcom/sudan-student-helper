@@ -345,32 +345,29 @@ export default function InteractiveLesson({
   /* =======================================================
      DIRECT STAGE NAVIGATION
   ======================================================= */
+const goToStage = (nextStage: LessonStage) => {
+  if (nextStage === "vocabulary") {
+    setVocabIndex(0);
+  }
 
-  const goToStage = (nextStage: LessonStage) => {
-    if (nextStage === "vocabulary") {
-      if (vocab.length === 0) return;
-      setVocabIndex(0);
-    }
+  if (nextStage === "match") {
+    setMatchIndex(0);
+    setMatchSelected(null);
+    setMatchCorrect(false);
+  }
 
-    if (nextStage === "match") {
-      if (match.length === 0) return;
-      setMatchIndex(0);
-    }
+  if (nextStage === "grammar") {
+    setGrammarIndex(0);
+    setGrammarAnswer(null);
+  }
 
-    if (nextStage === "grammar") {
-      if (grammarQuestions.length === 0) return;
-      setGrammarIndex(0);
-      setGrammarAnswer(null);
-    }
+  if (nextStage === "challenge") {
+    setChallengeIndex(0);
+    setChallengeAnswer(null);
+  }
 
-    if (nextStage === "challenge") {
-      if (challenge.length === 0) return;
-      setChallengeIndex(0);
-      setChallengeAnswer(null);
-    }
-
-    setStage(nextStage);
-  };
+  setStage(nextStage);
+};
 
   /* =======================================================
      RESET
