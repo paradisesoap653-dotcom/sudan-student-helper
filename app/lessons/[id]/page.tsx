@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { supabase } from "../../../lib/supabase";
+import { supabase } from "../../../supabaseClient";
 import InteractiveLesson from "../../InteractiveLesson";
 
 import type {
@@ -40,8 +40,11 @@ export default function LessonPage() {
       setError(false);
 
       /*
+       * ==========================================
        * جلب الدروس من Supabase
+       * ==========================================
        */
+
       const { data, error } = await supabase
         .from("lessons")
         .select(
@@ -60,8 +63,11 @@ export default function LessonPage() {
       }
 
       /*
+       * ==========================================
        * البحث المرن عن الدرس
+       * ==========================================
        */
+
       const requestedId = id
         .toLowerCase()
         .trim();
@@ -100,6 +106,12 @@ export default function LessonPage() {
         );
       });
 
+      /*
+       * ==========================================
+       * الدرس غير موجود
+       * ==========================================
+       */
+
       if (!found) {
         console.error(
           "Lesson not found:",
@@ -112,10 +124,11 @@ export default function LessonPage() {
       }
 
       /*
-       * تحويل بيانات Supabase
-       * إلى الشكل الذي يحتاجه
-       * InteractiveLesson
+       * ==========================================
+       * تجهيز الدرس للنظام التفاعلي
+       * ==========================================
        */
+
       const normalizedLesson: Lesson = {
         id: found.id,
 
@@ -155,11 +168,15 @@ export default function LessonPage() {
   }, [id]);
 
   /*
-   * جاري التحميل
+   * ==========================================
+   * شاشة التحميل
+   * ==========================================
    */
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+
         <div className="text-center">
 
           <div className="text-5xl mb-4">
@@ -171,13 +188,17 @@ export default function LessonPage() {
           </p>
 
         </div>
+
       </div>
     );
   }
 
   /*
-   * حدث خطأ
+   * ==========================================
+   * شاشة الخطأ
+   * ==========================================
    */
+
   if (error || !lesson) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
@@ -209,8 +230,11 @@ export default function LessonPage() {
   }
 
   /*
-   * الدرس التفاعلي
+   * ==========================================
+   * تشغيل الدرس التفاعلي
+   * ==========================================
    */
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-2 sm:p-6">
 
