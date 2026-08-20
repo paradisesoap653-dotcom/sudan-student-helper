@@ -80,4 +80,4 @@ export type LessonContent = {
   grammar?: GrammarData;
 
   challenge?: ChallengeItem[];
-};;{
+};
