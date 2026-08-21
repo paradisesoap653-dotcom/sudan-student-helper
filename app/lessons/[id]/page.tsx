@@ -137,9 +137,36 @@ export default function LessonPage() {
 
         /*
          * ==========================================
-         * تجهيز الدرس
+         * جديد: جلب الأسئلة التفاعلية التابعة لهذا الدرس من الجدول الجديد
          * ==========================================
          */
+        const { data: dbQuestions, error: questionsError } = await supabase
+          .from("questions")
+          .select("*")
+          .eq("lesson_id", found.id);
+
+        if (questionsError) {
+          console.error("Error fetching custom questions:", questionsError);
+        }
+
+        // تحويل تنسيق الأسئلة المجلوبة لتطابق الهيكل الذي يتوقعه مكوّن العرض لديك
+        const formattedGrammarQuestions = dbQuestions
+          ? dbQuestions
+              .filter((q) => q.section === "Grammar")
+              .map((q) => ({
+                question: q.question_text,
+                options: q.options || [],
+                answer: q.correct_answer,
+                explanation: q.explanation || ""
+              }))
+          : [];
+
+        /*
+         * ==========================================
+         * تجهيز الدرس وحقن الأسئلة الجديدة فيه
+         * ==========================================
+         */
+        const existingContentJson = found.content_json || {};
 
         const normalizedLesson: Lesson = {
           id: found.id,
@@ -165,8 +192,13 @@ export default function LessonPage() {
           content_html:
             found.content_html,
 
-          content_json:
-            found.content_json || {},
+          // حقن الأسئلة الجديدة مباشرة داخل الـ content_json لتعرضها الواجهة تلقائياً
+          content_json: {
+            ...existingContentJson,
+            grammar: formattedGrammarQuestions.length > 0 
+              ? formattedGrammarQuestions 
+              : (existingContentJson.grammar || [])
+          },
         };
 
         /*
@@ -210,7 +242,7 @@ export default function LessonPage() {
           </div>
 
           <p className="text-slate-300">
-            جاري تحميل الدرس...
+            جاري تحميل الدرس والأسئلة التفاعلية...
           </p>
 
         </div>
