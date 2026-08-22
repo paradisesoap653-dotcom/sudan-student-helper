@@ -46,15 +46,8 @@ export default function LessonPage() {
       try {
         /*
          * ==========================================
-         * جلب الدرس من جدول lessons
-         *
-         * الجدول الحالي:
-         *
-         * id
-         * subject_id
-         * unit_title
-         * lesson_title
-         * content_json
+         * جلب الدرس المحدد مباشرة من جدول lessons
+         * باستخدام الـ ID لضمان دقة وسرعة الاستعلام
          * ==========================================
          */
 
@@ -62,9 +55,11 @@ export default function LessonPage() {
           .from("lessons")
           .select(
             "id, subject_id, unit_title, lesson_title, content_json"
-          );
+          )
+          .eq("id", id)
+          .single();
 
-        if (error) {
+        if (error || !data) {
           console.error(
             "Supabase lesson error:",
             error
@@ -75,68 +70,7 @@ export default function LessonPage() {
           return;
         }
 
-        if (!data || data.length === 0) {
-          console.error(
-            "No lessons found"
-          );
-
-          setError(true);
-          setLoading(false);
-          return;
-        }
-
-        /*
-         * ==========================================
-         * البحث عن الدرس
-         * ==========================================
-         */
-
-        const requestedId = id
-          .toLowerCase()
-          .trim();
-
-        const found = data.find((item) => {
-          const itemId = String(
-            item.id ?? ""
-          )
-            .toLowerCase()
-            .trim();
-
-          const subjectId = String(
-            item.subject_id ?? ""
-          )
-            .toLowerCase()
-            .trim();
-
-          const lessonTitle = String(
-            item.lesson_title ?? ""
-          )
-            .toLowerCase()
-            .trim();
-
-          return (
-            itemId === requestedId ||
-            lessonTitle === requestedId ||
-            subjectId === requestedId
-          );
-        });
-
-        /*
-         * ==========================================
-         * الدرس غير موجود
-         * ==========================================
-         */
-
-        if (!found) {
-          console.error(
-            "Lesson not found:",
-            id
-          );
-
-          setError(true);
-          setLoading(false);
-          return;
-        }
+        const found = data;
 
         /*
          * ==========================================
