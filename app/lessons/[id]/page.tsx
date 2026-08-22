@@ -46,14 +46,22 @@ export default function LessonPage() {
       try {
         /*
          * ==========================================
-         * جلب الدروس
+         * جلب الدرس من جدول lessons
+         *
+         * الجدول الحالي:
+         *
+         * id
+         * subject_id
+         * unit_title
+         * lesson_title
+         * content_json
          * ==========================================
          */
 
         const { data, error } = await supabase
           .from("lessons")
           .select(
-            "id, subject_id, title, content, content_html, content_json, unit_title, lesson_title"
+            "id, subject_id, unit_title, lesson_title, content_json"
           );
 
         if (error) {
@@ -68,6 +76,10 @@ export default function LessonPage() {
         }
 
         if (!data || data.length === 0) {
+          console.error(
+            "No lessons found"
+          );
+
           setError(true);
           setLoading(false);
           return;
@@ -75,7 +87,7 @@ export default function LessonPage() {
 
         /*
          * ==========================================
-         * البحث المرن عن الدرس
+         * البحث عن الدرس
          * ==========================================
          */
 
@@ -96,12 +108,6 @@ export default function LessonPage() {
             .toLowerCase()
             .trim();
 
-          const title = String(
-            item.title ?? ""
-          )
-            .toLowerCase()
-            .trim();
-
           const lessonTitle = String(
             item.lesson_title ?? ""
           )
@@ -110,11 +116,8 @@ export default function LessonPage() {
 
           return (
             itemId === requestedId ||
-            subjectId === requestedId ||
-            title === requestedId ||
             lessonTitle === requestedId ||
-            (subjectId &&
-              requestedId.includes(subjectId))
+            subjectId === requestedId
           );
         });
 
@@ -137,36 +140,36 @@ export default function LessonPage() {
 
         /*
          * ==========================================
-         * جديد: جلب الأسئلة التفاعلية التابعة لهذا الدرس من الجدول الجديد
+         * تجهيز content_json
          * ==========================================
          */
-        const { data: dbQuestions, error: questionsError } = await supabase
-          .from("questions")
-          .select("*")
-          .eq("lesson_id", found.id);
 
-        if (questionsError) {
-          console.error("Error fetching custom questions:", questionsError);
+        let contentJson = found.content_json;
+
+        /*
+         * Supabase قد يرجع JSON كنص حسب نوع العمود.
+         * لذلك نتأكد من تحويله إلى Object.
+         */
+
+        if (typeof contentJson === "string") {
+          try {
+            contentJson =
+              JSON.parse(contentJson);
+          } catch (parseError) {
+            console.error(
+              "Invalid content_json:",
+              parseError
+            );
+
+            contentJson = {};
+          }
         }
-
-        // تحويل تنسيق الأسئلة المجلوبة لتطابق الهيكل الذي يتوقعه مكوّن العرض لديك
-        const formattedGrammarQuestions = dbQuestions
-          ? dbQuestions
-              .filter((q) => q.section === "Grammar")
-              .map((q) => ({
-                question: q.question_text,
-                options: q.options || [],
-                answer: q.correct_answer,
-                explanation: q.explanation || ""
-              }))
-          : [];
 
         /*
          * ==========================================
-         * تجهيز الدرس وحقن الأسئلة الجديدة فيه
+         * تجهيز الدرس
          * ==========================================
          */
-        const existingContentJson = found.content_json || {};
 
         const normalizedLesson: Lesson = {
           id: found.id,
@@ -174,31 +177,14 @@ export default function LessonPage() {
           subject_id:
             found.subject_id,
 
-          title:
-            found.title,
+          unit_title:
+            found.unit_title,
 
           lesson_title:
-            found.lesson_title ||
-            found.title ||
-            "Lesson",
+            found.lesson_title,
 
-          unit_title:
-            found.unit_title ||
-            "Unit 1",
-
-          content:
-            found.content,
-
-          content_html:
-            found.content_html,
-
-          // حقن الأسئلة الجديدة مباشرة داخل الـ content_json لتعرضها الواجهة تلقائياً
-          content_json: {
-            ...existingContentJson,
-            grammar: formattedGrammarQuestions.length > 0 
-              ? formattedGrammarQuestions 
-              : (existingContentJson.grammar || [])
-          },
+          content_json:
+            contentJson || {},
         };
 
         /*
@@ -212,6 +198,7 @@ export default function LessonPage() {
         );
 
         setLoading(false);
+
       } catch (err) {
         console.error(
           "Unexpected lesson error:",
@@ -235,6 +222,7 @@ export default function LessonPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+
         <div className="text-center">
 
           <div className="text-5xl mb-4">
@@ -242,10 +230,11 @@ export default function LessonPage() {
           </div>
 
           <p className="text-slate-300">
-            جاري تحميل الدرس والأسئلة التفاعلية...
+            جاري تحميل الدرس...
           </p>
 
         </div>
+
       </div>
     );
   }
