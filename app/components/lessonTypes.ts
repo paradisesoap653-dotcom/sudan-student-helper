@@ -27,7 +27,6 @@ export type Lesson = {
   subject_id: string;
   unit_title: string;
   lesson_title: string;
-  content: string | null;
   content_json?: LessonContent;
 };
 
@@ -58,6 +57,14 @@ export type GrammarData = {
     present?: string;
   };
   practice_verbs?: string[];
+  silent_letters?: {
+    word: string;
+    silent: string;
+  }[];
+  spelling?: {
+    title?: string;
+    examples?: string[];
+  };
 };
 
 export type ChallengeItem = {
