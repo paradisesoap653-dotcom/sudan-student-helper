@@ -567,37 +567,6 @@ function InteractiveLesson({
         </h3>
 
         {/* ================================================= */}
-        {/* TEMP DEBUG PANEL — احذف هذا القسم بعد التشخيص */}
-        {/* ================================================= */}
-        <div
-          style={{
-            backgroundColor: "#450a0a",
-            border: "2px solid #ef4444",
-            borderRadius: "8px",
-            padding: "10px",
-            marginBottom: "16px",
-            fontSize: "11px",
-            color: "#fecaca",
-            direction: "ltr",
-            textAlign: "left",
-            wordBreak: "break-all",
-          }}
-        >
-          <div>stage: {String(stage)}</div>
-          <div>data keys: {Object.keys(data).join(", ") || "(empty object)"}</div>
-          <div>typeof lesson.content_json: {typeof lesson?.content_json}</div>
-          <div>vocab.length: {vocab.length}</div>
-          <div>match.length: {match.length}</div>
-          <div>challenge.length: {challenge.length}</div>
-          <div>
-            raw content_json (first 300 chars):{" "}
-            {typeof lesson?.content_json === "string"
-              ? lesson.content_json.slice(0, 300)
-              : JSON.stringify(lesson?.content_json).slice(0, 300)}
-          </div>
-        </div>
-
-        {/* ================================================= */}
         {/* LEARN */}
         {/* ================================================= */}
 
