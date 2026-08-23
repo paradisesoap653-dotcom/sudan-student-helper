@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // إنشاء عميل Supabase باستخدام المتغيرات البيئية للمشروع
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabaseAnonKey =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 function InteractiveLesson({
@@ -18,10 +20,19 @@ function InteractiveLesson({
 }: any) {
   const data = lesson?.content_json || {};
 
-  const vocab = Array.isArray(data.vocabulary) ? data.vocabulary : [];
-  const match = Array.isArray(data.match) ? data.match : [];
+  const vocab = Array.isArray(data.vocabulary)
+    ? data.vocabulary
+    : [];
+
+  const match = Array.isArray(data.match)
+    ? data.match
+    : [];
+
   const grammar = data.grammar || {};
-  const challenge = Array.isArray(data.challenge) ? data.challenge : [];
+
+  const challenge = Array.isArray(data.challenge)
+    ? data.challenge
+    : [];
 
   // =========================================================
   // MATCH
@@ -29,8 +40,15 @@ function InteractiveLesson({
 
   const [matchWords, setMatchWords] = useState<any[]>([]);
   const [matchMeanings, setMatchMeanings] = useState<any[]>([]);
-  const [selectedWord, setSelectedWord] = useState<string | null>(null);
-  const [selectedMeaning, setSelectedMeaning] = useState<string | null>(null);
+
+  const [selectedWord, setSelectedWord] = useState<
+    string | null
+  >(null);
+
+  const [selectedMeaning, setSelectedMeaning] = useState<
+    string | null
+  >(null);
+
   const [matchedWords, setMatchedWords] = useState<string[]>([]);
   const [matchWrong, setMatchWrong] = useState(false);
   const [matchScore, setMatchScore] = useState(0);
@@ -41,51 +59,222 @@ function InteractiveLesson({
   // =========================================================
 
   const [grammarIndex, setGrammarIndex] = useState(0);
-  const [grammarAnswer, setGrammarAnswer] = useState<string | null>(null);
+
+  const [grammarAnswer, setGrammarAnswer] = useState<
+    string | null
+  >(null);
+
   const [grammarScore, setGrammarScore] = useState(0);
-  const [fetchedGrammarQuestions, setFetchedGrammarQuestions] = useState<any[]>([]);
 
-// جلب أسئلة القواعد من جدول questions في Supabase بالطريقة الصحيحة
+  const [
+    fetchedGrammarQuestions,
+    setFetchedGrammarQuestions,
+  ] = useState<any[]>([]);
+
+  const [grammarLoading, setGrammarLoading] = useState(false);
+
+  const [grammarFetchError, setGrammarFetchError] = useState<
+    string | null
+  >(null);
+
+  const [grammarReloadKey, setGrammarReloadKey] = useState(0);
+
+  // جلب أسئلة القواعد من جدول questions
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchQuestionsFromTable() {
-      // التأكد من وجود الدرس
-      if (!lesson) return;
+      // تنظيف أسئلة الدرس السابق
+      setFetchedGrammarQuestions([]);
+      setGrammarFetchError(null);
+      setGrammarLoading(true);
 
-      // محاولة استخدام lesson_number أو تحويل ID الرقمي إذا وجد
-      const targetLessonId = lesson.lesson_number || lesson.lesson_id || lesson.id;
+      setGrammarIndex(0);
+      setGrammarAnswer(null);
+      setGrammarScore(0);
 
-      if (!targetLessonId) return;
+      /*
+        مهم جداً:
+        questions.lesson_id مرتبط بـ lessons.id.
+        لذلك نستخدم lesson.id فقط، وليس lesson_number.
+      */
+      const targetLessonId = Number(lesson?.id);
 
-      // طلب الأسئلة بناءً على رقم الدرس وقسم القواعد
-      const { data: questionsData, error } = await supabase
-        .from("questions")
-        .select("*")
-        .eq("lesson_id", targetLessonId)
-        .ilike("section", "Grammar");
+      console.log("[Grammar] Lesson ID received:", lesson?.id);
+      console.log("[Grammar] targetLessonId:", targetLessonId);
 
-      if (error) {
-        console.error("Supabase error:", error);
+      if (
+        !Number.isSafeInteger(targetLessonId) ||
+        targetLessonId <= 0
+      ) {
+        const message = `رقم الدرس غير صالح: ${
+          lesson?.id ?? "غير موجود"
+        }`;
+
+        console.error("[Grammar]", message);
+
+        if (!cancelled) {
+          setGrammarFetchError(message);
+          setGrammarLoading(false);
+        }
+
         return;
       }
 
-      if (questionsData && questionsData.length > 0) {
-        const formatted = questionsData.map((q: any) => ({
-          question: q.question_text,
-          answer: q.correct_answer,
-          options: typeof q.options === "string" ? JSON.parse(q.options) : q.options || [],
-        }));
-        setFetchedGrammarQuestions(formatted);
+      try {
+        const { data: questionsData, error } = await supabase
+          .from("questions")
+          .select(`
+            id,
+            lesson_id,
+            section,
+            question_type,
+            question_text,
+            options,
+            correct_answer,
+            explanation
+          `)
+          .eq("lesson_id", targetLessonId)
+          .ilike("section", "grammar")
+          .order("id", { ascending: true });
+
+        console.log("[Grammar] Supabase response:", {
+          targetLessonId,
+          count: questionsData?.length ?? 0,
+          data: questionsData,
+          error,
+        });
+
+        if (cancelled) return;
+
+        if (error) {
+          throw error;
+        }
+
+        const formatted = (questionsData ?? []).map(
+          (question: any) => {
+            let parsedOptions: any = question.options;
+
+            // معالجة options إذا وصلت كنص JSON
+            if (typeof parsedOptions === "string") {
+              try {
+                parsedOptions = JSON.parse(parsedOptions);
+              } catch (parseError) {
+                console.error(
+                  `[Grammar] Failed to parse options for question ${question.id}:`,
+                  parseError
+                );
+
+                parsedOptions = [];
+              }
+            }
+
+            // معالجة options إذا وصلت ككائن
+            if (
+              parsedOptions &&
+              typeof parsedOptions === "object" &&
+              !Array.isArray(parsedOptions)
+            ) {
+              parsedOptions = Object.values(parsedOptions);
+            }
+
+            if (!Array.isArray(parsedOptions)) {
+              parsedOptions = [];
+            }
+
+            const normalizedOptions = parsedOptions
+              .map((option: any) => {
+                if (typeof option === "string") {
+                  return option;
+                }
+
+                if (typeof option === "number") {
+                  return String(option);
+                }
+
+                if (
+                  option &&
+                  typeof option === "object"
+                ) {
+                  return String(
+                    option.text ??
+                      option.label ??
+                      option.value ??
+                      ""
+                  );
+                }
+
+                return String(option ?? "");
+              })
+              .filter((option: string) => option.trim() !== "");
+
+            return {
+              id: question.id,
+              lessonId: question.lesson_id,
+              section: question.section,
+              type: question.question_type,
+              question: question.question_text,
+              answer: question.correct_answer,
+              options: normalizedOptions,
+              explanation: question.explanation || "",
+            };
+          }
+        );
+
+        console.log(
+          "[Grammar] Formatted questions:",
+          formatted
+        );
+
+        console.log(
+          "[Grammar] Number of questions:",
+          formatted.length
+        );
+
+        if (!cancelled) {
+          setFetchedGrammarQuestions(formatted);
+        }
+
+        if (formatted.length === 0) {
+          console.warn(
+            `[Grammar] No questions returned for lesson_id ${targetLessonId}`
+          );
+        }
+      } catch (error: any) {
+        if (cancelled) return;
+
+        console.error("[Grammar] Fetch error:", error);
+
+        const errorMessage =
+          error?.message ||
+          "حدث خطأ أثناء تحميل تدريبات القواعد.";
+
+        setGrammarFetchError(errorMessage);
+        setFetchedGrammarQuestions([]);
+      } finally {
+        if (!cancelled) {
+          setGrammarLoading(false);
+        }
       }
     }
 
     fetchQuestionsFromTable();
-  }, [lesson]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lesson?.id, grammarReloadKey]);
+
   // =========================================================
   // CHALLENGE
   // =========================================================
 
   const [challengeIndex, setChallengeIndex] = useState(0);
-  const [challengeAnswer, setChallengeAnswer] = useState<string | null>(null);
+
+  const [challengeAnswer, setChallengeAnswer] = useState<
+    string | null
+  >(null);
+
   const [challengeScore, setChallengeScore] = useState(0);
 
   // =========================================================
@@ -97,11 +286,57 @@ function InteractiveLesson({
 
     for (let i = result.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
+
       [result[i], result[j]] = [result[j], result[i]];
     }
 
     return result;
   }
+
+  // =========================================================
+  // GRAMMAR QUESTIONS
+  // =========================================================
+
+  /*
+    نستخدم أسئلة Supabase إذا وُجدت.
+    إذا لم توجد نستخدم الأسئلة الموجودة داخل content_json.
+    useMemo تمنع إعادة خلط الخيارات عند كل ضغطة.
+  */
+  const grammarQuestions = useMemo(() => {
+    const customGrammarQuestions = Array.isArray(
+      grammar.questions
+    )
+      ? grammar.questions
+      : [];
+
+    const baseGrammarQuestions =
+      fetchedGrammarQuestions.length > 0
+        ? fetchedGrammarQuestions
+        : customGrammarQuestions;
+
+    return baseGrammarQuestions.map((question: any) => ({
+      id: question.id,
+      question:
+        question.question ??
+        question.question_text ??
+        "",
+
+      answer:
+        question.answer ??
+        question.correct_answer ??
+        "",
+
+      options: shuffleArray(
+        Array.isArray(question.options)
+          ? question.options
+          : []
+      ),
+
+      explanation: question.explanation || "",
+    }));
+  }, [fetchedGrammarQuestions, grammar.questions]);
+
+  const currentGrammar = grammarQuestions[grammarIndex];
 
   // =========================================================
   // MATCH SETUP
@@ -157,7 +392,8 @@ function InteractiveLesson({
   const chooseMeaning = (meaning: string) => {
     const alreadyMatched = match.some(
       (item: any) =>
-        matchedWords.includes(item.term) && item.meaning === meaning
+        matchedWords.includes(item.term) &&
+        item.meaning === meaning
     );
 
     if (alreadyMatched) return;
@@ -176,18 +412,24 @@ function InteractiveLesson({
     }
   };
 
-  const checkMatch = (term: string, meaning: string) => {
+  const checkMatch = (
+    term: string,
+    meaning: string
+  ) => {
     const item = match.find(
       (entry: any) =>
-        entry.term === term && entry.meaning === meaning
+        entry.term === term &&
+        entry.meaning === meaning
     );
 
     if (item) {
-      setMatchedWords((prev) =>
-        prev.includes(term) ? prev : [...prev, term]
+      setMatchedWords((previous) =>
+        previous.includes(term)
+          ? previous
+          : [...previous, term]
       );
 
-      setMatchScore((prev) => prev + 1);
+      setMatchScore((previous) => previous + 1);
 
       setSelectedWord(null);
       setSelectedMeaning(null);
@@ -207,63 +449,54 @@ function InteractiveLesson({
     match.length > 0 &&
     matchedWords.length === match.length;
 
+  /*
+    ننتظر انتهاء تحميل أسئلة Grammar قبل تحديد
+    هل ننتقل إلى Grammar أم Challenge.
+  */
   useEffect(() => {
-    if (matchCompleted) {
-      const timer = setTimeout(() => {
-        setGrammarIndex(0);
-        setGrammarAnswer(null);
-        setGrammarScore(0);
-
-        if (grammarQuestions.length > 0) {
-          setStage("grammar");
-        } else if (challenge.length > 0) {
-          setChallengeIndex(0);
-          setChallengeAnswer(null);
-          setChallengeScore(0);
-          setStage("challenge");
-        } else {
-          setStage("result");
-        }
-      }, 900);
-
-      return () => clearTimeout(timer);
+    if (!matchCompleted || grammarLoading) {
+      return;
     }
-  }, [matchCompleted]);
+
+    const timer = setTimeout(() => {
+      setGrammarIndex(0);
+      setGrammarAnswer(null);
+      setGrammarScore(0);
+
+      if (grammarQuestions.length > 0) {
+        setStage("grammar");
+      } else if (challenge.length > 0) {
+        setChallengeIndex(0);
+        setChallengeAnswer(null);
+        setChallengeScore(0);
+        setStage("challenge");
+      } else {
+        setStage("result");
+      }
+    }, 900);
+
+    return () => clearTimeout(timer);
+  }, [matchCompleted, grammarLoading]);
 
   // =========================================================
   // GRAMMAR QUESTIONS LOGIC
   // =========================================================
 
-  const customGrammarQuestions = Array.isArray(grammar.questions)
-    ? grammar.questions
-    : [];
-
-  const baseGrammarQuestions =
-    fetchedGrammarQuestions.length > 0
-      ? fetchedGrammarQuestions
-      : customGrammarQuestions;
-
-  const grammarQuestions = baseGrammarQuestions.map((q: any) => ({
-    question: q.question,
-    answer: q.answer,
-    options: shuffleArray(Array.isArray(q.options) ? q.options : []),
-  }));
-
-  const currentGrammar = grammarQuestions[grammarIndex];
-
   const answerGrammar = (answer: string) => {
-    if (grammarAnswer !== null || !currentGrammar) return;
+    if (grammarAnswer !== null || !currentGrammar) {
+      return;
+    }
 
     setGrammarAnswer(answer);
 
     if (answer === currentGrammar.answer) {
-      setGrammarScore((prev) => prev + 1);
+      setGrammarScore((previous) => previous + 1);
     }
   };
 
   const nextGrammar = () => {
     if (grammarIndex < grammarQuestions.length - 1) {
-      setGrammarIndex((prev) => prev + 1);
+      setGrammarIndex((previous) => previous + 1);
       setGrammarAnswer(null);
       return;
     }
@@ -280,24 +513,29 @@ function InteractiveLesson({
   };
 
   // =========================================================
-  // CHALLENGE
+  // CHALLENGE LOGIC
   // =========================================================
 
   const currentChallenge = challenge[challengeIndex];
 
   const answerChallenge = (answer: string) => {
-    if (challengeAnswer !== null || !currentChallenge) return;
+    if (
+      challengeAnswer !== null ||
+      !currentChallenge
+    ) {
+      return;
+    }
 
     setChallengeAnswer(answer);
 
     if (answer === currentChallenge.answer) {
-      setChallengeScore((prev) => prev + 1);
+      setChallengeScore((previous) => previous + 1);
     }
   };
 
   const nextChallenge = () => {
     if (challengeIndex < challenge.length - 1) {
-      setChallengeIndex((prev) => prev + 1);
+      setChallengeIndex((previous) => previous + 1);
       setChallengeAnswer(null);
       return;
     }
@@ -321,20 +559,46 @@ function InteractiveLesson({
 
   const percentage =
     totalQuestions > 0
-      ? Math.round((totalScore / totalQuestions) * 100)
+      ? Math.round(
+          (totalScore / totalQuestions) * 100
+        )
       : 0;
 
   const stages = [
-    { id: "learn", icon: "📖", label: "Learn" },
-    { id: "vocabulary", icon: "🧠", label: "Vocabulary" },
-    { id: "match", icon: "🧩", label: "Match" },
-    { id: "grammar", icon: "🎯", label: "Grammar" },
-    { id: "challenge", icon: "⚡", label: "Challenge" },
-    { id: "result", icon: "🏆", label: "Result" },
+    {
+      id: "learn",
+      icon: "📖",
+      label: "Learn",
+    },
+    {
+      id: "vocabulary",
+      icon: "🧠",
+      label: "Vocabulary",
+    },
+    {
+      id: "match",
+      icon: "🧩",
+      label: "Match",
+    },
+    {
+      id: "grammar",
+      icon: "🎯",
+      label: "Grammar",
+    },
+    {
+      id: "challenge",
+      icon: "⚡",
+      label: "Challenge",
+    },
+    {
+      id: "result",
+      icon: "🏆",
+      label: "Result",
+    },
   ];
 
   const currentStageIndex = stages.findIndex(
-    (s) => s.id === stage
+    (item) => item.id === stage
   );
 
   // =========================================================
@@ -377,7 +641,10 @@ function InteractiveLesson({
               flex: 1,
               minWidth: "50px",
               textAlign: "center",
-              opacity: index <= currentStageIndex ? 1 : 0.45,
+              opacity:
+                index <= currentStageIndex
+                  ? 1
+                  : 0.45,
             }}
           >
             <div
@@ -385,7 +652,9 @@ function InteractiveLesson({
                 height: "5px",
                 borderRadius: "5px",
                 backgroundColor:
-                  index <= currentStageIndex ? "#3b82f6" : "#334155",
+                  index <= currentStageIndex
+                    ? "#3b82f6"
+                    : "#334155",
                 marginBottom: "5px",
               }}
             />
@@ -394,7 +663,9 @@ function InteractiveLesson({
               style={{
                 fontSize: "10px",
                 color:
-                  index === currentStageIndex ? "#fbbf24" : "#94a3b8",
+                  index === currentStageIndex
+                    ? "#fbbf24"
+                    : "#94a3b8",
                 whiteSpace: "nowrap",
               }}
             >
@@ -461,12 +732,22 @@ function InteractiveLesson({
               </p>
             )}
 
-            {Array.isArray(data.learn?.paragraphs) &&
-              data.learn.paragraphs.map((p: string, i: number) => (
-                <p key={i} style={{ color: "#e2e8f0", lineHeight: 1.8 }}>
-                  {p}
-                </p>
-              ))}
+            {Array.isArray(
+              data.learn?.paragraphs
+            ) &&
+              data.learn.paragraphs.map(
+                (paragraph: string, index: number) => (
+                  <p
+                    key={index}
+                    style={{
+                      color: "#e2e8f0",
+                      lineHeight: 1.8,
+                    }}
+                  >
+                    {paragraph}
+                  </p>
+                )
+              )}
 
             <button
               type="button"
@@ -495,112 +776,127 @@ function InteractiveLesson({
         {/* VOCABULARY */}
         {/* ================================================= */}
 
-        {stage === "vocabulary" && vocab.length > 0 && (
-          <div>
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#94a3b8",
-                marginBottom: "10px",
-              }}
-            >
-              🧠 Vocabulary ({vocabIndex + 1}/{vocab.length})
-            </div>
-
-            <div
-              style={{
-                backgroundColor: "#0f172a",
-                borderRadius: "10px",
-                padding: "20px",
-                textAlign: "center",
-                border: "1px solid #334155",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                  color: "#fff",
-                  marginBottom: "8px",
-                }}
-              >
-                {vocab[vocabIndex]?.word}
-              </div>
-
-              <div
-                style={{
-                  fontSize: "18px",
-                  color: "#fbbf24",
-                  marginBottom: "12px",
-                }}
-              >
-                {vocab[vocabIndex]?.meaning}
-              </div>
-
+        {stage === "vocabulary" &&
+          vocab.length > 0 && (
+            <div>
               <div
                 style={{
                   fontSize: "13px",
                   color: "#94a3b8",
-                  fontStyle: "italic",
+                  marginBottom: "10px",
                 }}
               >
-                {vocab[vocabIndex]?.example}
+                🧠 Vocabulary ({vocabIndex + 1}/
+                {vocab.length})
+              </div>
+
+              <div
+                style={{
+                  backgroundColor: "#0f172a",
+                  borderRadius: "10px",
+                  padding: "20px",
+                  textAlign: "center",
+                  border: "1px solid #334155",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "24px",
+                    fontWeight: "bold",
+                    color: "#fff",
+                    marginBottom: "8px",
+                  }}
+                >
+                  {vocab[vocabIndex]?.word}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: "18px",
+                    color: "#fbbf24",
+                    marginBottom: "12px",
+                  }}
+                >
+                  {vocab[vocabIndex]?.meaning}
+                </div>
+
+                <div
+                  style={{
+                    fontSize: "13px",
+                    color: "#94a3b8",
+                    fontStyle: "italic",
+                  }}
+                >
+                  {vocab[vocabIndex]?.example}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  marginTop: "16px",
+                }}
+              >
+                <button
+                  type="button"
+                  disabled={vocabIndex === 0}
+                  onClick={() =>
+                    setVocabIndex(vocabIndex - 1)
+                  }
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    borderRadius: "8px",
+                    border: "1px solid #334155",
+                    backgroundColor: "transparent",
+                    color:
+                      vocabIndex === 0
+                        ? "#475569"
+                        : "#fff",
+                  }}
+                >
+                  السابق
+                </button>
+
+                {vocabIndex < vocab.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setVocabIndex(vocabIndex + 1)
+                    }
+                    style={{
+                      flex: 1,
+                      padding: "10px",
+                      borderRadius: "8px",
+                      border: "none",
+                      backgroundColor: "#3b82f6",
+                      color: "#fff",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    التالي ➡️
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={startMatch}
+                    style={{
+                      flex: 1,
+                      padding: "10px",
+                      borderRadius: "8px",
+                      border: "none",
+                      backgroundColor: "#8b5cf6",
+                      color: "#fff",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    ابدأ المطابقة 🧩
+                  </button>
+                )}
               </div>
             </div>
-
-            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-              <button
-                type="button"
-                disabled={vocabIndex === 0}
-                onClick={() => setVocabIndex(vocabIndex - 1)}
-                style={{
-                  flex: 1,
-                  padding: "10px",
-                  borderRadius: "8px",
-                  border: "1px solid #334155",
-                  backgroundColor: "transparent",
-                  color: vocabIndex === 0 ? "#475569" : "#fff",
-                }}
-              >
-                السابق
-              </button>
-
-              {vocabIndex < vocab.length - 1 ? (
-                <button
-                  type="button"
-                  onClick={() => setVocabIndex(vocabIndex + 1)}
-                  style={{
-                    flex: 1,
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "none",
-                    backgroundColor: "#3b82f6",
-                    color: "#fff",
-                    fontWeight: "bold",
-                  }}
-                >
-                  التالي ➡️
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={startMatch}
-                  style={{
-                    flex: 1,
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "none",
-                    backgroundColor: "#8b5cf6",
-                    color: "#fff",
-                    fontWeight: "bold",
-                  }}
-                >
-                  ابدأ المطابقة 🧩
-                </button>
-              )}
-            </div>
-          </div>
-        )}
+          )}
 
         {/* ================================================= */}
         {/* MATCH */}
@@ -649,11 +945,21 @@ function InteractiveLesson({
                 marginBottom: "15px",
               }}
             >
-              <span style={{ color: "#94a3b8", fontSize: "12px" }}>
+              <span
+                style={{
+                  color: "#94a3b8",
+                  fontSize: "12px",
+                }}
+              >
                 التقدم
               </span>
 
-              <strong style={{ color: "#22c55e", fontSize: "14px" }}>
+              <strong
+                style={{
+                  color: "#22c55e",
+                  fontSize: "14px",
+                }}
+              >
                 {matchedWords.length} / {match.length} ✅
               </strong>
             </div>
@@ -670,7 +976,8 @@ function InteractiveLesson({
                   marginBottom: "12px",
                 }}
               >
-                ❌ ليست المطابقة الصحيحة، حاول مرة أخرى
+                ❌ ليست المطابقة الصحيحة، حاول مرة
+                أخرى
               </div>
             )}
 
@@ -694,15 +1001,20 @@ function InteractiveLesson({
                 </div>
 
                 {matchWords.map((item: any) => {
-                  const matched = matchedWords.includes(item.term);
-                  const selected = selectedWord === item.term;
+                  const matched =
+                    matchedWords.includes(item.term);
+
+                  const selected =
+                    selectedWord === item.term;
 
                   return (
                     <button
                       key={item.term}
                       type="button"
                       disabled={matched}
-                      onClick={() => chooseWord(item.term)}
+                      onClick={() =>
+                        chooseWord(item.term)
+                      }
                       style={{
                         width: "100%",
                         minHeight: "52px",
@@ -711,20 +1023,22 @@ function InteractiveLesson({
                         border: matched
                           ? "1px solid #22c55e"
                           : selected
-                          ? "1px solid #f59e0b"
-                          : "1px solid #334155",
+                            ? "1px solid #f59e0b"
+                            : "1px solid #334155",
                         backgroundColor: matched
                           ? "#14532d"
                           : selected
-                          ? "#78350f"
-                          : "#0f172a",
+                            ? "#78350f"
+                            : "#0f172a",
                         color: "#fff",
                         fontWeight: "bold",
                       }}
                     >
                       {item.term}
                       {matched && " ✅"}
-                      {selected && !matched && " 👆"}
+                      {selected &&
+                        !matched &&
+                        " 👆"}
                     </button>
                   );
                 })}
@@ -743,15 +1057,20 @@ function InteractiveLesson({
                 </div>
 
                 {matchMeanings.map((item: any) => {
-                  const matched = matchedWords.includes(item.term);
-                  const selected = selectedMeaning === item.meaning;
+                  const matched =
+                    matchedWords.includes(item.term);
+
+                  const selected =
+                    selectedMeaning === item.meaning;
 
                   return (
                     <button
                       key={item.meaning}
                       type="button"
                       disabled={matched}
-                      onClick={() => chooseMeaning(item.meaning)}
+                      onClick={() =>
+                        chooseMeaning(item.meaning)
+                      }
                       style={{
                         width: "100%",
                         minHeight: "52px",
@@ -760,20 +1079,22 @@ function InteractiveLesson({
                         border: matched
                           ? "1px solid #22c55e"
                           : selected
-                          ? "1px solid #f59e0b"
-                          : "1px solid #334155",
+                            ? "1px solid #f59e0b"
+                            : "1px solid #334155",
                         backgroundColor: matched
                           ? "#14532d"
                           : selected
-                          ? "#78350f"
-                          : "#0f172a",
+                            ? "#78350f"
+                            : "#0f172a",
                         color: "#fff",
                         fontWeight: "bold",
                       }}
                     >
                       {item.meaning}
                       {matched && " ✅"}
-                      {selected && !matched && " 👆"}
+                      {selected &&
+                        !matched &&
+                        " 👆"}
                     </button>
                   );
                 })}
@@ -804,9 +1125,40 @@ function InteractiveLesson({
 
         {stage === "grammar" && (
           <div>
-            {grammarQuestions.length > 0 ? (
+            {grammarLoading ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "28px 10px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "40px",
+                    marginBottom: "12px",
+                  }}
+                >
+                  ⏳
+                </div>
+
+                <div
+                  style={{
+                    color: "#e2e8f0",
+                    fontSize: "16px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  جاري تحميل تدريبات القواعد...
+                </div>
+              </div>
+            ) : grammarQuestions.length > 0 ? (
               <>
-                <div style={{ color: "#94a3b8", marginBottom: "8px" }}>
+                <div
+                  style={{
+                    color: "#94a3b8",
+                    marginBottom: "8px",
+                  }}
+                >
                   🎯 Grammar
                 </div>
 
@@ -817,7 +1169,8 @@ function InteractiveLesson({
                     fontSize: "13px",
                   }}
                 >
-                  السؤال {grammarIndex + 1} من {grammarQuestions.length}
+                  السؤال {grammarIndex + 1} من{" "}
+                  {grammarQuestions.length}
                 </div>
 
                 <div
@@ -848,18 +1201,28 @@ function InteractiveLesson({
                   }}
                 >
                   {currentGrammar?.options.map(
-                    (option: string, index: number) => {
+                    (
+                      option: string,
+                      index: number
+                    ) => {
                       const correct =
                         grammarAnswer !== null &&
-                        option === currentGrammar.answer;
-                      const selected = grammarAnswer === option;
+                        option ===
+                          currentGrammar.answer;
+
+                      const selected =
+                        grammarAnswer === option;
 
                       return (
                         <button
                           key={`${option}-${index}`}
                           type="button"
-                          onClick={() => answerGrammar(option)}
-                          disabled={grammarAnswer !== null}
+                          onClick={() =>
+                            answerGrammar(option)
+                          }
+                          disabled={
+                            grammarAnswer !== null
+                          }
                           style={{
                             width: "100%",
                             padding: "13px",
@@ -867,25 +1230,47 @@ function InteractiveLesson({
                             border: correct
                               ? "1px solid #22c55e"
                               : selected
-                              ? "1px solid #ef4444"
-                              : "1px solid #334155",
+                                ? "1px solid #ef4444"
+                                : "1px solid #334155",
                             backgroundColor: correct
                               ? "#14532d"
                               : selected
-                              ? "#450a0a"
-                              : "#0f172a",
+                                ? "#450a0a"
+                                : "#0f172a",
                             color: "#fff",
                             fontWeight: "bold",
                           }}
                         >
                           {option}
                           {correct && " ✅"}
-                          {selected && !correct && " ❌"}
+                          {selected &&
+                            !correct &&
+                            " ❌"}
                         </button>
                       );
                     }
                   )}
                 </div>
+
+                {grammarAnswer !== null &&
+                  currentGrammar?.explanation && (
+                    <div
+                      style={{
+                        marginTop: "14px",
+                        padding: "12px",
+                        borderRadius: "9px",
+                        backgroundColor: "#172554",
+                        border:
+                          "1px solid #3b82f6",
+                        color: "#dbeafe",
+                        lineHeight: 1.7,
+                        fontSize: "14px",
+                      }}
+                    >
+                      💡{" "}
+                      {currentGrammar.explanation}
+                    </div>
+                  )}
 
                 {grammarAnswer !== null && (
                   <button
@@ -901,17 +1286,93 @@ function InteractiveLesson({
                       color: "#fff",
                       fontWeight: "bold",
                       fontSize: "15px",
+                      cursor: "pointer",
                     }}
                   >
-                    {grammarIndex < grammarQuestions.length - 1
+                    {grammarIndex <
+                    grammarQuestions.length - 1
                       ? "السؤال التالي ➡️"
                       : "انتقل إلى التحدي ⚡"}
                   </button>
                 )}
               </>
+            ) : grammarFetchError ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "20px 10px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "40px",
+                    marginBottom: "10px",
+                  }}
+                >
+                  ⚠️
+                </div>
+
+                <div
+                  style={{
+                    color: "#fecaca",
+                    fontSize: "16px",
+                    fontWeight: "bold",
+                    marginBottom: "8px",
+                  }}
+                >
+                  تعذر تحميل تدريبات القواعد.
+                </div>
+
+                <div
+                  style={{
+                    color: "#94a3b8",
+                    fontSize: "13px",
+                    lineHeight: 1.6,
+                    marginBottom: "14px",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {grammarFetchError}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setGrammarReloadKey(
+                      (previous) => previous + 1
+                    )
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "14px",
+                    borderRadius: "9px",
+                    border: "none",
+                    backgroundColor: "#f59e0b",
+                    color: "#111827",
+                    fontWeight: "bold",
+                    fontSize: "15px",
+                    cursor: "pointer",
+                  }}
+                >
+                  إعادة المحاولة 🔄
+                </button>
+              </div>
             ) : (
-              <div style={{ textAlign: "center", padding: "20px 10px" }}>
-                <div style={{ fontSize: "40px", marginBottom: "10px" }}>🎯</div>
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "20px 10px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "40px",
+                    marginBottom: "10px",
+                  }}
+                >
+                  🎯
+                </div>
+
                 <div
                   style={{
                     color: "#e2e8f0",
@@ -922,12 +1383,14 @@ function InteractiveLesson({
                 >
                   لا توجد تدريبات قواعد لهذا الدرس.
                 </div>
+
                 <button
                   type="button"
                   onClick={() => {
                     setChallengeIndex(0);
                     setChallengeAnswer(null);
                     setChallengeScore(0);
+
                     if (challenge.length > 0) {
                       setStage("challenge");
                     } else {
@@ -958,141 +1421,189 @@ function InteractiveLesson({
         {/* CHALLENGE */}
         {/* ================================================= */}
 
-        {stage === "challenge" && challenge.length > 0 && (
-          <div>
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#94a3b8",
-                marginBottom: "8px",
-              }}
-            >
-              ⚡ Challenge
-            </div>
-
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#64748b",
-                marginBottom: "15px",
-              }}
-            >
-              السؤال {challengeIndex + 1} من {challenge.length}
-            </div>
-
-            <div
-              style={{
-                backgroundColor: "#0f172a",
-                borderRadius: "12px",
-                padding: "20px 15px",
-                border: "1px solid #334155",
-                marginBottom: "14px",
-              }}
-            >
+        {stage === "challenge" &&
+          challenge.length > 0 && (
+            <div>
               <div
                 style={{
-                  color: "#fff",
-                  fontSize: "18px",
-                  fontWeight: "bold",
-                  textAlign: "center",
+                  fontSize: "13px",
+                  color: "#94a3b8",
+                  marginBottom: "8px",
                 }}
               >
-                {currentChallenge?.question}
+                ⚡ Challenge
               </div>
-            </div>
 
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "9px",
-              }}
-            >
-              {currentChallenge?.options?.map(
-                (option: string, index: number) => {
-                  const correct =
-                    challengeAnswer !== null &&
-                    option === currentChallenge.answer;
-                  const selected = challengeAnswer === option;
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "#64748b",
+                  marginBottom: "15px",
+                }}
+              >
+                السؤال {challengeIndex + 1} من{" "}
+                {challenge.length}
+              </div>
 
-                  return (
-                    <button
-                      key={`${option}-${index}`}
-                      type="button"
-                      onClick={() => answerChallenge(option)}
-                      disabled={challengeAnswer !== null}
-                      style={{
-                        width: "100%",
-                        padding: "13px",
-                        borderRadius: "9px",
-                        border: correct
-                          ? "1px solid #22c55e"
-                          : selected
-                          ? "1px solid #ef4444"
-                          : "1px solid #334155",
-                        backgroundColor: correct
-                          ? "#14532d"
-                          : selected
-                          ? "#450a0a"
-                          : "#0f172a",
-                        color: "#fff",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {option}
-                      {correct && " ✅"}
-                      {selected && !correct && " ❌"}
-                    </button>
-                  );
-                }
+              <div
+                style={{
+                  backgroundColor: "#0f172a",
+                  borderRadius: "12px",
+                  padding: "20px 15px",
+                  border: "1px solid #334155",
+                  marginBottom: "14px",
+                }}
+              >
+                <div
+                  style={{
+                    color: "#fff",
+                    fontSize: "18px",
+                    fontWeight: "bold",
+                    textAlign: "center",
+                  }}
+                >
+                  {currentChallenge?.question}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "9px",
+                }}
+              >
+                {currentChallenge?.options?.map(
+                  (
+                    option: string,
+                    index: number
+                  ) => {
+                    const correct =
+                      challengeAnswer !== null &&
+                      option ===
+                        currentChallenge.answer;
+
+                    const selected =
+                      challengeAnswer === option;
+
+                    return (
+                      <button
+                        key={`${option}-${index}`}
+                        type="button"
+                        onClick={() =>
+                          answerChallenge(option)
+                        }
+                        disabled={
+                          challengeAnswer !== null
+                        }
+                        style={{
+                          width: "100%",
+                          padding: "13px",
+                          borderRadius: "9px",
+                          border: correct
+                            ? "1px solid #22c55e"
+                            : selected
+                              ? "1px solid #ef4444"
+                              : "1px solid #334155",
+                          backgroundColor: correct
+                            ? "#14532d"
+                            : selected
+                              ? "#450a0a"
+                              : "#0f172a",
+                          color: "#fff",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        {option}
+                        {correct && " ✅"}
+                        {selected &&
+                          !correct &&
+                          " ❌"}
+                      </button>
+                    );
+                  }
+                )}
+              </div>
+
+              {challengeAnswer !== null && (
+                <button
+                  type="button"
+                  onClick={nextChallenge}
+                  style={{
+                    marginTop: "16px",
+                    width: "100%",
+                    padding: "14px",
+                    borderRadius: "9px",
+                    border: "none",
+                    backgroundColor: "#3b82f6",
+                    color: "#fff",
+                    fontWeight: "bold",
+                    fontSize: "15px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {challengeIndex <
+                  challenge.length - 1
+                    ? "السؤال التالي ➡️"
+                    : "إنهاء الاختبار 🏆"}
+                </button>
               )}
             </div>
-
-            {challengeAnswer !== null && (
-              <button
-                type="button"
-                onClick={nextChallenge}
-                style={{
-                  marginTop: "16px",
-                  width: "100%",
-                  padding: "14px",
-                  borderRadius: "9px",
-                  border: "none",
-                  backgroundColor: "#3b82f6",
-                  color: "#fff",
-                  fontWeight: "bold",
-                  fontSize: "15px",
-                }}
-              >
-                {challengeIndex < challenge.length - 1
-                  ? "السؤال التالي ➡️"
-                  : "إنهاء الاختبار 🏆"}
-              </button>
-            )}
-          </div>
-        )}
+          )}
 
         {/* ================================================= */}
         {/* RESULT */}
         {/* ================================================= */}
 
         {stage === "result" && (
-          <div style={{ textAlign: "center", padding: "20px 10px" }}>
-            <div style={{ fontSize: "50px", marginBottom: "10px" }}>🏆</div>
-            <h2 style={{ color: "#fff", marginBottom: "10px" }}>نتيجة الدرس</h2>
+          <div
+            style={{
+              textAlign: "center",
+              padding: "20px 10px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "50px",
+                marginBottom: "10px",
+              }}
+            >
+              🏆
+            </div>
+
+            <h2
+              style={{
+                color: "#fff",
+                marginBottom: "10px",
+              }}
+            >
+              نتيجة الدرس
+            </h2>
+
             <div
               style={{
                 fontSize: "36px",
                 fontWeight: "bold",
-                color: percentage >= 50 ? "#22c55e" : "#ef4444",
+                color:
+                  percentage >= 50
+                    ? "#22c55e"
+                    : "#ef4444",
                 marginBottom: "15px",
               }}
             >
               {percentage}%
             </div>
-            <p style={{ color: "#94a3b8", marginBottom: "20px" }}>
-              لقد أجبت بشكل صحيح على {totalScore} من أصل {totalQuestions} سؤال.
+
+            <p
+              style={{
+                color: "#94a3b8",
+                marginBottom: "20px",
+              }}
+            >
+              لقد أجبت بشكل صحيح على {totalScore} من
+              أصل {totalQuestions} سؤال.
             </p>
+
             <button
               type="button"
               onClick={onExit}
