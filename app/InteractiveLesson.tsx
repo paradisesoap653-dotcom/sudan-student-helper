@@ -1,7 +1,12 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"; // تم إضافة عميل Supabase
+import { createClient } from "@supabase/supabase-js";
+
+// إنشاء عميل Supabase باستخدام المتغيرات البيئية للمشروع
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 function InteractiveLesson({
   lesson,
@@ -11,7 +16,6 @@ function InteractiveLesson({
   setVocabIndex,
   onExit,
 }: any) {
-  const supabase = createClientComponentClient();
   const data = lesson?.content_json || {};
 
   const vocab = Array.isArray(data.vocabulary) ? data.vocabulary : [];
@@ -33,7 +37,7 @@ function InteractiveLesson({
   const [matchStarted, setMatchStarted] = useState(false);
 
   // =========================================================
-  // GRAMMAR STATE & FETCHING (التعديل الرئيسي لجلب الأسئلة)
+  // GRAMMAR STATE & FETCHING
   // =========================================================
 
   const [grammarIndex, setGrammarIndex] = useState(0);
@@ -216,14 +220,13 @@ function InteractiveLesson({
   }, [matchCompleted]);
 
   // =========================================================
-  // GENERIC GRAMMAR QUESTIONS LOGIC
+  // GRAMMAR QUESTIONS LOGIC
   // =========================================================
 
   const customGrammarQuestions = Array.isArray(grammar.questions)
     ? grammar.questions
     : [];
 
-  // ترتيب الأولويات: 1. الأسئلة المجلوبة من جدول questions، 2. الأسئلة داخل JSON، 3. الأفعال القديمة
   const baseGrammarQuestions =
     fetchedGrammarQuestions.length > 0
       ? fetchedGrammarQuestions
@@ -785,7 +788,7 @@ function InteractiveLesson({
         )}
 
         {/* ================================================= */}
-        {/* GRAMMAR (تم الحماية والتحديث الكامل هنا) */}
+        {/* GRAMMAR */}
         {/* ================================================= */}
 
         {stage === "grammar" && (
