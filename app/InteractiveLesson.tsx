@@ -45,18 +45,30 @@ function InteractiveLesson({
   const [grammarScore, setGrammarScore] = useState(0);
   const [fetchedGrammarQuestions, setFetchedGrammarQuestions] = useState<any[]>([]);
 
-  // جلب أسئلة القواعد من جدول questions في Supabase
+// جلب أسئلة القواعد من جدول questions في Supabase بالطريقة الصحيحة
   useEffect(() => {
     async function fetchQuestionsFromTable() {
-      if (!lesson?.id) return;
+      // التأكد من وجود الدرس
+      if (!lesson) return;
 
+      // محاولة استخدام lesson_number أو تحويل ID الرقمي إذا وجد
+      const targetLessonId = lesson.lesson_number || lesson.lesson_id || lesson.id;
+
+      if (!targetLessonId) return;
+
+      // طلب الأسئلة بناءً على رقم الدرس وقسم القواعد
       const { data: questionsData, error } = await supabase
         .from("questions")
         .select("*")
-        .eq("lesson_id", lesson.id)
+        .eq("lesson_id", targetLessonId)
         .ilike("section", "Grammar");
 
-      if (!error && questionsData && questionsData.length > 0) {
+      if (error) {
+        console.error("Supabase error:", error);
+        return;
+      }
+
+      if (questionsData && questionsData.length > 0) {
         const formatted = questionsData.map((q: any) => ({
           question: q.question_text,
           answer: q.correct_answer,
@@ -67,9 +79,8 @@ function InteractiveLesson({
     }
 
     fetchQuestionsFromTable();
-  }, [lesson?.id]);
-
-  // =========================================================
+  }, [lesson]);
+  =========================================================
   // CHALLENGE
   // =========================================================
 
