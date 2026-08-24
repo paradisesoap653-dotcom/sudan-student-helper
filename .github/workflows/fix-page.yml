@@ -1,4 +1,4 @@
-name: Fix page automatically
+name: Deploy complete lesson fixes
 
 on:
   push:
@@ -8,39 +8,70 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: deploy-complete-lesson-fixes
+  cancel-in-progress: false
+
 jobs:
-  fix:
+  repair-and-verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Restore and fix app/page.tsx
+      - name: Apply the tested application fixes
         shell: bash
         run: |
-          git show 70131d60323b0040b62c24103df39aa63620efb4:app/page.tsx > app/page.tsx
+          cat > /tmp/application-fixes.patch.gz.b64 <<'PATCH_DATA'
+          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
+          PATCH_DATA
+          base64 --decode /tmp/application-fixes.patch.gz.b64 | gzip --decompress > /tmp/application-fixes.patch
+          git apply --check /tmp/application-fixes.patch
+          git apply /tmp/application-fixes.patch
 
-          python3 <<'PY'
+      - name: Confirm the old questions table is not referenced
+        shell: bash
+        run: |
+          python3 <<'PY_AUDIT'
           from pathlib import Path
-          p = Path("app/page.tsx")
-          s = p.read_text()
-          s = s.replace(
-              "  const grammarQuestions = practiceVerbs.map((verb: string) => {",
-              "  let grammarQuestions = practiceVerbs.map((verb: string) => {",
-              1,
+
+          blocked = (
+              '.from("questions")',
+              ".from('questions')",
+              'public.questions',
+              '/rest/v1/questions',
           )
-          marker = "  const currentGrammar = grammarQuestions[grammarIndex];"
-          addition = '''  if (Array.isArray(grammar?.questions) && grammar.questions.length > 0) {
-            grammarQuestions = grammar.questions;
-          }
+          matches = []
+          for root in (Path('app'), Path('components')):
+              if not root.exists():
+                  continue
+              for path in root.rglob('*'):
+                  if path.is_file() and path.suffix in {'.ts', '.tsx', '.js', '.jsx'}:
+                      text = path.read_text(encoding='utf-8', errors='ignore')
+                      for token in blocked:
+                          if token in text:
+                              matches.append(f"{path}: {token}")
+          if matches:
+              raise SystemExit('Old questions-table references found:\n' + '\n'.join(matches))
+          print('Audit passed: no application reference to public.questions.')
+          PY_AUDIT
 
-          '''
-          p.write_text(s.replace(marker, addition + marker, 1))
-          PY
+      - name: Install dependencies and run a production build
+        run: |
+          npm ci
+          npm run build
 
+      - name: Commit and push the verified fixes
+        shell: bash
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/page.tsx
-          git commit -m "Restore page and enable JSON Grammar"
+          git add app/page.tsx app/InteractiveLesson.tsx 'app/lessons/[id]/page.tsx' app/layout.tsx
+          if git diff --cached --quiet; then
+            echo "The application fixes are already present."
+            exit 0
+          fi
+          git commit -m "Complete embedded Grammar and lesson repairs"
           git push
