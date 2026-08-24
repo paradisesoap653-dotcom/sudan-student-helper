@@ -3,7 +3,7 @@ name: Deploy mobile lesson UX improvements
 on:
   push:
     paths:
-      - ".github/workflows/ux-lesson-improvements.yml"
+      - ".github/workflows/fix-page.yml"
 
 permissions:
   contents: write
