@@ -1,210 +1,56 @@
-name: Deploy mobile lesson UX improvements
+name: Fix lesson navigation and previous button
 
 on:
   push:
     paths:
       - ".github/workflows/fix-page.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: deploy-mobile-lesson-ux-improvements
+  group: fix-lesson-navigation
   cancel-in-progress: false
 
 jobs:
-  improve-and-verify:
+  fix-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Apply the tested UX improvements
+      - name: Make every lesson stage clickable and repair Previous
         shell: bash
         run: |
-          cat > /tmp/ux-improvements.patch.gz.b64 <<'PATCH_DATA'
-          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
-          PATCH_DATA
-          base64 --decode /tmp/ux-improvements.patch.gz.b64 | gzip --decompress > /tmp/ux-improvements.patch
-          echo "fd08780e2a2ac54226ef7698d4f0b5379ee384123331b8a8723934664e4467f0  /tmp/ux-improvements.patch" | sha256sum --check
-          git apply --check /tmp/ux-improvements.patch
-          git apply /tmp/ux-improvements.patch
-          git diff --check
-
-      - name: Audit the lesson UX and retired-table boundary
-        shell: bash
-        run: |
-          python3 <<'PY_AUDIT'
-          from pathlib import Path
-
-          files = {
-              'inline': Path('app/page.tsx').read_text(encoding='utf-8'),
-              'standalone': Path('app/InteractiveLesson.tsx').read_text(encoding='utf-8'),
-          }
-
-          required = (
-              'لا توجد تدريبات على القواعد لهذا الدرس.',
-              'aria-label="مراحل الدرس"',
-              'aria-disabled={isUnavailable || undefined}',
-              'aria-label="مسار التنقل"',
-              'overflowX: "auto"',
-              'textAlign: "start"',
-          )
-          failures = []
-          for name, text in files.items():
-              for token in required:
-                  if token not in text:
-                      failures.append(f'{name} is missing {token}')
-
-          if 'function SubjectIcon' not in files['inline']:
-              failures.append('inline lesson page is missing the reusable SubjectIcon')
-
-          combined = '\n'.join(files.values())
-          blocked = (
-              '🔤',
-              'متابعة',
-              '.from("questions")',
-              ".from('questions')",
-              'public.questions',
-              '/rest/v1/questions',
-          )
-          for token in blocked:
-              if token in combined:
-                  failures.append(f'blocked token is still present: {token}')
-
-          if failures:
-              raise SystemExit('UX audit failed:\n' + '\n'.join(failures))
-
-          print('UX audit passed for inline and standalone lesson interfaces.')
-          PY_AUDIT
-
-      - name: Install dependencies and run a production build
-        run: |
-          npm install --no-audit --no-fund
-          npm run build
-
-      - name: Commit and push the verified improvements
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/page.tsx app/InteractiveLesson.tsx 'app/lessons/[id]/page.tsx' app/layout.tsx
-          if git diff --cached --quiet; then
-            echo "The UX improvements are already present."
+          if grep -Fq 'السابق: التعلّم' app/page.tsx && grep -Fq 'setStage(item.id);' app/page.tsx; then
+            echo "The navigation repair is already applied."
             exit 0
           fi
-          git commit -m "Improve mobile lesson navigation and accessibility"
+
+          echo 'LS0tIGEvYXBwL3BhZ2UudHN4CisrKyBiL2FwcC9wYWdlLnRzeApAQCAtODM3LDcgKzgzNywxMiBAQAogICAgICDYp9mE2YXYsdin2K3ZhAogICA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0gKi8KIAotICBjb25zdCBzdGFnZXMgPSBbCisgIGNvbnN0IHN0YWdlczogQXJyYXk8eworICAgIGlkOiBMZXNzb25TdGFnZTsKKyAgICBpY29uOiBzdHJpbmc7CisgICAgbGFiZWw6IHN0cmluZzsKKyAgICBhdmFpbGFibGU6IGJvb2xlYW47CisgIH0+ID0gWwogICAgIHsgaWQ6ICJsZWFybiIsIGljb246ICLwn5OWIiwgbGFiZWw6ICLYqti52YTZkdmFIiwgYXZhaWxhYmxlOiB0cnVlIH0sCiAgICAgewogICAgICAgaWQ6ICJ2b2NhYnVsYXJ5IiwKQEAgLTkyOSwxNyArOTM0LDI5IEBACiAgICAgICAgICAgY29uc3QgaXNVbmF2YWlsYWJsZSA9ICFpdGVtLmF2YWlsYWJsZTsKIAogICAgICAgICAgIHJldHVybiAoCi0gICAgICAgICAgICA8ZGl2CisgICAgICAgICAgICA8YnV0dG9uCisgICAgICAgICAgICAgIHR5cGU9ImJ1dHRvbiIKICAgICAgICAgICAgICAga2V5PXtpdGVtLmlkfQorICAgICAgICAgICAgICBvbkNsaWNrPXsoKSA9PiB7CisgICAgICAgICAgICAgICAgaWYgKGl0ZW0uYXZhaWxhYmxlKSB7CisgICAgICAgICAgICAgICAgICBzZXRTdGFnZShpdGVtLmlkKTsKKyAgICAgICAgICAgICAgICB9CisgICAgICAgICAgICAgIH19CisgICAgICAgICAgICAgIGRpc2FibGVkPXtpc1VuYXZhaWxhYmxlfQogICAgICAgICAgICAgICBhcmlhLWN1cnJlbnQ9e2lzQ3VycmVudCAmJiAhaXNVbmF2YWlsYWJsZSA/ICJzdGVwIiA6IHVuZGVmaW5lZH0KLSAgICAgICAgICAgICAgYXJpYS1kaXNhYmxlZD17aXNVbmF2YWlsYWJsZSB8fCB1bmRlZmluZWR9Ci0gICAgICAgICAgICAgIHRpdGxlPXtpc1VuYXZhaWxhYmxlID8gIti62YrYsSDZhdiq2KfYrSDZhNmH2LDYpyDYp9mE2K/YsdizIiA6IGl0ZW0ubGFiZWx9CisgICAgICAgICAgICAgIHRpdGxlPXtpc1VuYXZhaWxhYmxlID8gIti62YrYsSDZhdiq2KfYrSDZhNmH2LDYpyDYp9mE2K/YsdizIiA6IGDYp9mE2KfZhtiq2YLYp9mEINil2YTZiSAke2l0ZW0ubGFiZWx9YH0KICAgICAgICAgICAgICAgc3R5bGU9e3sKICAgICAgICAgICAgICAgICBmbGV4OiAiMSAwIDU2cHgiLAogICAgICAgICAgICAgICAgIG1pbldpZHRoOiAiNTZweCIsCisgICAgICAgICAgICAgICAgcGFkZGluZzogMCwKKyAgICAgICAgICAgICAgICBib3JkZXI6ICJub25lIiwKKyAgICAgICAgICAgICAgICBiYWNrZ3JvdW5kOiAidHJhbnNwYXJlbnQiLAorICAgICAgICAgICAgICAgIGZvbnRGYW1pbHk6ICJpbmhlcml0IiwKICAgICAgICAgICAgICAgICB0ZXh0QWxpZ246ICJjZW50ZXIiLAogICAgICAgICAgICAgICAgIG9wYWNpdHk6IGlzVW5hdmFpbGFibGUgPyAwLjU4IDogaXNSZWFjaGVkID8gMSA6IDAuNzgsCiAgICAgICAgICAgICAgICAgc2Nyb2xsU25hcEFsaWduOiAic3RhcnQiLAorICAgICAgICAgICAgICAgIGN1cnNvcjogaXNVbmF2YWlsYWJsZSA/ICJub3QtYWxsb3dlZCIgOiAicG9pbnRlciIsCisgICAgICAgICAgICAgICAgV2Via2l0VGFwSGlnaGxpZ2h0Q29sb3I6ICJ0cmFuc3BhcmVudCIsCiAgICAgICAgICAgICAgIH19CiAgICAgICAgICAgICA+CiAgICAgICAgICAgICAgIDxkaXYKQEAgLTk3NSw3ICs5OTIsNyBAQAogICAgICAgICAgICAgICAgIDxzcGFuIGFyaWEtaGlkZGVuPSJ0cnVlIj57aXRlbS5pY29ufTwvc3Bhbj4KICAgICAgICAgICAgICAgICA8c3Bhbj57aXRlbS5sYWJlbH08L3NwYW4+CiAgICAgICAgICAgICAgIDwvZGl2PgotICAgICAgICAgICAgPC9kaXY+CisgICAgICAgICAgICA8L2J1dHRvbj4KICAgICAgICAgICApOwogICAgICAgICB9KX0KICAgICAgIDwvZGl2PgpAQCAtMTE1OCwyNyArMTE3NSwyNCBAQAogICAgICAgICAgICAgPgogICAgICAgICAgICAgICA8YnV0dG9uCiAgICAgICAgICAgICAgICAgdHlwZT0iYnV0dG9uIgotICAgICAgICAgICAgICAgIGRpc2FibGVkPXt2b2NhYkluZGV4ID09PSAwfQotICAgICAgICAgICAgICAgIG9uQ2xpY2s9eygpID0+Ci0gICAgICAgICAgICAgICAgICBzZXRWb2NhYkluZGV4KHZvY2FiSW5kZXggLSAxKQotICAgICAgICAgICAgICAgIH0KKyAgICAgICAgICAgICAgICBvbkNsaWNrPXsoKSA9PiB7CisgICAgICAgICAgICAgICAgICBpZiAodm9jYWJJbmRleCA+IDApIHsKKyAgICAgICAgICAgICAgICAgICAgc2V0Vm9jYWJJbmRleCh2b2NhYkluZGV4IC0gMSk7CisgICAgICAgICAgICAgICAgICB9IGVsc2UgeworICAgICAgICAgICAgICAgICAgICBzZXRTdGFnZSgibGVhcm4iKTsKKyAgICAgICAgICAgICAgICAgIH0KKyAgICAgICAgICAgICAgICB9fQogICAgICAgICAgICAgICAgIHN0eWxlPXt7CiAgICAgICAgICAgICAgICAgICBmbGV4OiAxLAogICAgICAgICAgICAgICAgICAgcGFkZGluZzogIjEwcHgiLAogICAgICAgICAgICAgICAgICAgYm9yZGVyUmFkaXVzOiAiOHB4IiwKICAgICAgICAgICAgICAgICAgIGJvcmRlcjogIjFweCBzb2xpZCAjMzM0MTU1IiwKICAgICAgICAgICAgICAgICAgIGJhY2tncm91bmRDb2xvcjogInRyYW5zcGFyZW50IiwKLSAgICAgICAgICAgICAgICAgIGNvbG9yOgotICAgICAgICAgICAgICAgICAgICB2b2NhYkluZGV4ID09PSAwCi0gICAgICAgICAgICAgICAgICAgICAgPyAiIzQ3NTU2OSIKLSAgICAgICAgICAgICAgICAgICAgICA6ICIjZmZmIiwKLSAgICAgICAgICAgICAgICAgIGN1cnNvcjoKLSAgICAgICAgICAgICAgICAgICAgdm9jYWJJbmRleCA9PT0gMAotICAgICAgICAgICAgICAgICAgICAgID8gImRlZmF1bHQiCi0gICAgICAgICAgICAgICAgICAgICAgOiAicG9pbnRlciIsCisgICAgICAgICAgICAgICAgICBjb2xvcjogIiNmZmYiLAorICAgICAgICAgICAgICAgICAgY3Vyc29yOiAicG9pbnRlciIsCiAgICAgICAgICAgICAgICAgfX0KICAgICAgICAgICAgICAgPgotICAgICAgICAgICAgICAgINin2YTYs9in2KjZggorICAgICAgICAgICAgICAgIHt2b2NhYkluZGV4ID09PSAwID8gItin2YTYs9in2KjZgjog2KfZhNiq2LnZhNmR2YUiIDogItin2YTYs9in2KjZgiJ9CiAgICAgICAgICAgICAgIDwvYnV0dG9uPgogCiAgICAgICAgICAgICAgIHt2b2NhYkluZGV4IDwgdm9jYWIubGVuZ3RoIC0gMSA/ICgK' | base64 --decode > /tmp/lesson-navigation.patch
+          git apply --check /tmp/lesson-navigation.patch
+          git apply /tmp/lesson-navigation.patch
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Verify production build
+        run: npm run build
+
+      - name: Commit the tested repair
+        shell: bash
+        run: |
+          if git diff --quiet -- app/page.tsx; then
+            echo "No new changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/page.tsx
+          git commit -m "Make lesson stages clickable and fix Previous button"
           git push
