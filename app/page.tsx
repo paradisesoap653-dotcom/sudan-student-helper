@@ -8,7 +8,7 @@ import { supabase } from "../supabaseClient";
 ========================================================= */
 
 const HOME_COVER =
-  https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/banar.jpg
+  "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/banar.jpg";
 
 /* =========================================================
    أنواع البيانات
