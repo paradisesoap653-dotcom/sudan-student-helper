@@ -585,7 +585,7 @@ function InteractiveLesson({
     win: "won",
   };
 
-  const grammarQuestions = practiceVerbs.map((verb: string) => {
+  let grammarQuestions = practiceVerbs.map((verb: string) => {
     const answer = pastTenses[verb] || `${verb}ed`;
 
     const optionsMap: Record<string, string[]> = {
@@ -614,27 +614,12 @@ function InteractiveLesson({
       ),
     };
   });
-});
 
-const grammarQuestions = useMemo(() => {
-  const embeddedQuestions = Array.isArray(grammar?.questions)
-    ? grammar.questions
-    : [];
+  if (Array.isArray(grammar?.questions) && grammar.questions.length > 0) {
+  grammarQuestions = grammar.questions;
+}
 
-  if (embeddedQuestions.length === 0) {
-    return legacyGrammarQuestions;
-  }
-
-  return embeddedQuestions.map((item: any, index: number) => ({
-    ...item,
-    id: item?.id ?? `${lesson?.id ?? "lesson"}-grammar-${index}`,
-    options: shuffleArray(
-      Array.isArray(item?.options) ? item.options : []
-    ),
-  }));
-}, [grammar?.questions, lesson?.id]);
-
-const currentGrammar = grammarQuestions[grammarIndex];
+  const currentGrammar = grammarQuestions[grammarIndex];
 
   const answerGrammar = (answer: string) => {
     if (grammarAnswer !== null || !currentGrammar) return;
@@ -1377,8 +1362,149 @@ const currentGrammar = grammarQuestions[grammarIndex];
         {/* ===================================================
             GRAMMAR
         =================================================== */}
-         
-             {stage === "grammar" &&
+
+        {stage === "grammar" &&
+          grammarQuestions.length > 0 && (
+            <div>
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "#94a3b8",
+                  marginBottom: "8px",
+                }}
+              >
+                🎯 Grammar
+              </div>
+
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "#64748b",
+                  marginBottom: "15px",
+                }}
+              >
+                {grammar.title ||
+                  "Time for Tenses"}{" "}
+                — السؤال {grammarIndex + 1} من{" "}
+                {grammarQuestions.length}
+              </div>
+
+              <div
+                style={{
+                  backgroundColor: "#0f172a",
+                  borderRadius: "12px",
+                  padding: "20px 15px",
+                  border: "1px solid #334155",
+                  marginBottom: "14px",
+                }}
+              >
+                <div
+                  style={{
+                    color: "#fff",
+                    fontSize: "18px",
+                    fontWeight: "bold",
+                    textAlign: "center",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  {currentGrammar?.question}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "9px",
+                }}
+              >
+                {currentGrammar?.options.map(
+                  (
+                    option: string,
+                    index: number
+                  ) => {
+                    const correct =
+                      grammarAnswer !== null &&
+                      option ===
+                        currentGrammar.answer;
+
+                    const selected =
+                      grammarAnswer === option;
+
+                    return (
+                      <button
+                        key={`${option}-${index}`}
+                        type="button"
+                        onClick={() =>
+                          answerGrammar(option)
+                        }
+                        style={{
+                          width: "100%",
+                          padding: "13px",
+                          borderRadius: "9px",
+                          border: `1px solid ${
+                            correct
+                              ? "#22c55e"
+                              : selected
+                              ? "#ef4444"
+                              : "#334155"
+                          }`,
+                          backgroundColor: correct
+                            ? "#14532d"
+                            : selected
+                            ? "#450a0a"
+                            : "#0f172a",
+                          color: "#fff",
+                          fontWeight: "bold",
+                          cursor:
+                            grammarAnswer !== null
+                              ? "default"
+                              : "pointer",
+                        }}
+                      >
+                        {option}
+
+                        {correct && " ✅"}
+
+                        {selected &&
+                          !correct &&
+                          " ❌"}
+                      </button>
+                    );
+                  }
+                )}
+              </div>
+
+              {grammarAnswer !== null && (
+                <button
+                  type="button"
+                  onClick={nextGrammar}
+                  style={{
+                    marginTop: "14px",
+                    width: "100%",
+                    padding: "12px",
+                    borderRadius: "8px",
+                    border: "none",
+                    backgroundColor: "#3b82f6",
+                    color: "#fff",
+                    fontWeight: "bold",
+                    cursor: "pointer",
+                  }}
+                >
+                  {grammarIndex <
+                  grammarQuestions.length - 1
+                    ? "التالي ➡️"
+                    : "انتقل إلى التحدي ⚡"}
+                </button>
+              )}
+            </div>
+          )}
+
+        {/* ===================================================
+            GRAMMAR بدون بيانات
+        =================================================== */}
+
+        {stage === "grammar" &&
           grammarQuestions.length === 0 && (
             <div
               style={{
@@ -2727,11 +2853,6 @@ export default function Home() {
                               lesson.lesson_title
                             }
                           </div>
-                        </button>
-                      )
-
- 
-                         </div>
                         </button>
                       )
                     )}
