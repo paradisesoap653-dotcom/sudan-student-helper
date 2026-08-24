@@ -1,0 +1,46 @@
+name: Fix page automatically
+
+on:
+  push:
+    paths:
+      - ".github/workflows/fix-page.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Restore and fix app/page.tsx
+        shell: bash
+        run: |
+          git show 70131d60323b0040b62c24103df39aa63620efb4:app/page.tsx > app/page.tsx
+
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path("app/page.tsx")
+          s = p.read_text()
+          s = s.replace(
+              "  const grammarQuestions = practiceVerbs.map((verb: string) => {",
+              "  let grammarQuestions = practiceVerbs.map((verb: string) => {",
+              1,
+          )
+          marker = "  const currentGrammar = grammarQuestions[grammarIndex];"
+          addition = '''  if (Array.isArray(grammar?.questions) && grammar.questions.length > 0) {
+            grammarQuestions = grammar.questions;
+          }
+
+          '''
+          p.write_text(s.replace(marker, addition + marker, 1))
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/page.tsx
+          git commit -m "Restore page and enable JSON Grammar"
+          git push
