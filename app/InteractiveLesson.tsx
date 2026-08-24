@@ -373,12 +373,32 @@ function InteractiveLesson({
       : 0;
 
   const stages = [
-    { id: "learn", icon: "📖", label: "Learn" },
-    { id: "vocabulary", icon: "🧠", label: "Vocabulary" },
-    { id: "match", icon: "🧩", label: "Match" },
-    { id: "grammar", icon: "🎯", label: "Grammar" },
-    { id: "challenge", icon: "⚡", label: "Challenge" },
-    { id: "result", icon: "🏆", label: "Result" },
+    { id: "learn", icon: "📖", label: "تعلّم", available: true },
+    {
+      id: "vocabulary",
+      icon: "🧠",
+      label: "كلمات",
+      available: vocab.length > 0,
+    },
+    {
+      id: "match",
+      icon: "🧩",
+      label: "مطابقة",
+      available: match.length > 0,
+    },
+    {
+      id: "grammar",
+      icon: "🎯",
+      label: "قواعد",
+      available: grammarQuestions.length > 0,
+    },
+    {
+      id: "challenge",
+      icon: "⚡",
+      label: "تحدي",
+      available: challenge.length > 0,
+    },
+    { id: "result", icon: "🏆", label: "نتيجة", available: true },
   ];
 
   const currentStageIndex = stages.findIndex(
@@ -390,90 +410,138 @@ function InteractiveLesson({
   // =========================================================
 
   return (
-    <div>
-      <button
-        type="button"
-        onClick={onExit}
+    <div style={{ paddingTop: "44px" }}>
+      <nav
+        aria-label="مسار التنقل"
+        dir="rtl"
         style={{
-          background: "none",
-          border: "none",
-          color: "#38bdf8",
-          cursor: "pointer",
-          marginBottom: "12px",
-          fontSize: "14px",
-          padding: "8px 0",
+          display: "flex",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "7px",
+          marginBottom: "14px",
+          color: "#cbd5e1",
+          fontSize: "13px",
         }}
       >
-        ➡️ العودة لقائمة الدروس
-      </button>
+        <span style={{ color: "#94a3b8" }}>المواد</span>
+        <span aria-hidden="true" style={{ color: "#64748b" }}>←</span>
+        <span style={{ color: "#94a3b8" }}>اللغة الإنجليزية</span>
+        <span aria-hidden="true" style={{ color: "#64748b" }}>←</span>
+        <button
+          type="button"
+          onClick={onExit}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#38bdf8",
+            cursor: "pointer",
+            fontSize: "13px",
+            fontWeight: "bold",
+            padding: "6px 0",
+          }}
+        >
+          الدروس
+        </button>
+      </nav>
 
       <div
+        aria-label="مراحل الدرس"
+        dir="ltr"
         style={{
           display: "flex",
           gap: "4px",
-          marginBottom: "18px",
+          marginBottom: "14px",
           overflowX: "auto",
-          paddingBottom: "5px",
+          padding: "2px 0 7px",
+          scrollbarWidth: "thin",
         }}
       >
-        {stages.map((item, index) => (
-          <div
-            key={item.id}
-            style={{
-              flex: 1,
-              minWidth: "50px",
-              textAlign: "center",
-              opacity: index <= currentStageIndex ? 1 : 0.45,
-            }}
-          >
-            <div
-              style={{
-                height: "5px",
-                borderRadius: "5px",
-                backgroundColor:
-                  index <= currentStageIndex ? "#3b82f6" : "#334155",
-                marginBottom: "5px",
-              }}
-            />
+        {stages.map((item, index) => {
+          const isCurrent = index === currentStageIndex;
+          const isReached = index <= currentStageIndex;
+          const isUnavailable = !item.available;
 
+          return (
             <div
+              key={item.id}
+              aria-current={isCurrent && !isUnavailable ? "step" : undefined}
+              aria-disabled={isUnavailable || undefined}
+              title={isUnavailable ? "غير متاح لهذا الدرس" : item.label}
               style={{
-                fontSize: "10px",
-                color:
-                  index === currentStageIndex ? "#fbbf24" : "#94a3b8",
-                whiteSpace: "nowrap",
+                flex: "1 0 56px",
+                minWidth: "56px",
+                textAlign: "center",
+                opacity: isUnavailable ? 0.58 : isReached ? 1 : 0.78,
+                scrollSnapAlign: "start",
               }}
             >
-              {item.icon} {item.label}
+              <div
+                style={{
+                  height: "5px",
+                  borderRadius: "999px",
+                  backgroundColor: isUnavailable
+                    ? "#475569"
+                    : isReached
+                      ? "#3b82f6"
+                      : "#475569",
+                  marginBottom: "6px",
+                }}
+              />
+
+              <div
+                dir="rtl"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "3px",
+                  fontSize: "11px",
+                  fontWeight: isCurrent ? "bold" : "normal",
+                  color: isUnavailable
+                    ? "#94a3b8"
+                    : isCurrent
+                      ? "#fbbf24"
+                      : "#cbd5e1",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span aria-hidden="true">{item.icon}</span>
+                <span>{item.label}</span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div
         style={{
           backgroundColor: "#1e293b",
           borderRadius: "12px",
-          padding: "18px",
+          padding: "16px",
           border: "1px solid #334155",
         }}
       >
         <div
+          dir="auto"
           style={{
             fontSize: "12px",
             color: "#fbbf24",
-            marginBottom: "8px",
+            marginBottom: "6px",
+            textAlign: "start",
           }}
         >
           {lesson?.unit_title}
         </div>
 
         <h3
+          dir="auto"
           style={{
             color: "#fff",
-            margin: "0 0 16px",
+            margin: "0 0 12px",
             fontSize: "20px",
-            lineHeight: 1.5,
+            lineHeight: 1.45,
+            textAlign: "start",
           }}
         >
           {lesson?.lesson_title}
@@ -493,10 +561,12 @@ function InteractiveLesson({
 
             {(data as any).learn?.intro && (
               <p
+                dir="auto"
                 style={{
                   color: "#e2e8f0",
                   lineHeight: 1.8,
                   fontWeight: "bold",
+                  textAlign: "start",
                 }}
               >
                 {(data as any).learn.intro}
@@ -508,7 +578,12 @@ function InteractiveLesson({
                 (paragraph: string, index: number) => (
                   <p
                     key={index}
-                    style={{ color: "#e2e8f0", lineHeight: 1.8 }}
+                    dir="auto"
+                    style={{
+                      color: "#e2e8f0",
+                      lineHeight: 1.8,
+                      textAlign: "start",
+                    }}
                   >
                     {paragraph}
                   </p>
@@ -560,6 +635,7 @@ function InteractiveLesson({
               }}
             >
               <div
+                dir="auto"
                 style={{
                   fontSize: "24px",
                   fontWeight: "bold",
@@ -571,6 +647,7 @@ function InteractiveLesson({
               </div>
 
               <div
+                dir="auto"
                 style={{
                   fontSize: "18px",
                   color: "#fbbf24",
@@ -581,9 +658,10 @@ function InteractiveLesson({
               </div>
 
               <div
+                dir="auto"
                 style={{
                   fontSize: "13px",
-                  color: "#94a3b8",
+                  color: "#cbd5e1",
                   fontStyle: "italic",
                 }}
               >
@@ -837,6 +915,47 @@ function InteractiveLesson({
           </div>
         )}
 
+        {stage === "match" && match.length === 0 && (
+          <div style={{ textAlign: "center", padding: "14px 6px" }}>
+            <div aria-hidden="true" style={{ fontSize: "32px" }}>
+              🧩
+            </div>
+
+            <p style={{ color: "#cbd5e1" }}>
+              لا توجد كلمات للمطابقة لهذا الدرس حالياً.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (grammarQuestions.length > 0) {
+                  setStage("grammar");
+                } else if (challenge.length > 0) {
+                  setStage("challenge");
+                } else {
+                  setStage("result");
+                }
+              }}
+              style={{
+                width: "100%",
+                padding: "12px",
+                border: "none",
+                borderRadius: "8px",
+                backgroundColor: "#3b82f6",
+                color: "#fff",
+                fontWeight: "bold",
+                cursor: "pointer",
+              }}
+            >
+              {grammarQuestions.length > 0
+                ? "الانتقال إلى القواعد 🎯"
+                : challenge.length > 0
+                  ? "الانتقال إلى التحدي ⚡"
+                  : "عرض النتيجة 🏆"}
+            </button>
+          </div>
+        )}
+
         {stage === "grammar" && (
           <div>
             {grammarQuestions.length > 0 ? (
@@ -864,11 +983,12 @@ function InteractiveLesson({
                   }}
                 >
                   <div
+                    dir="auto"
                     style={{
                       color: "#fff",
                       fontSize: "18px",
                       fontWeight: "bold",
-                      textAlign: "center",
+                      textAlign: "start",
                     }}
                   >
                     {currentGrammar?.question}
@@ -893,10 +1013,12 @@ function InteractiveLesson({
                         <button
                           key={`${option}-${index}`}
                           type="button"
+                          dir="auto"
                           onClick={() => answerGrammar(option)}
                           disabled={grammarAnswer !== null}
                           style={{
                             width: "100%",
+                            textAlign: "start",
                             padding: "13px",
                             borderRadius: "9px",
                             border: correct
@@ -924,6 +1046,7 @@ function InteractiveLesson({
 
                 {grammarAnswer !== null && currentGrammar?.explanation && (
                   <div
+                    dir="auto"
                     style={{
                       marginTop: "14px",
                       padding: "12px",
@@ -933,6 +1056,7 @@ function InteractiveLesson({
                       color: "#dbeafe",
                       lineHeight: 1.7,
                       fontSize: "14px",
+                      textAlign: "start",
                     }}
                   >
                     💡 {currentGrammar.explanation}
@@ -958,13 +1082,29 @@ function InteractiveLesson({
                   >
                     {grammarIndex < grammarQuestions.length - 1
                       ? "السؤال التالي ➡️"
-                      : "انتقل إلى التحدي ⚡"}
+                      : challenge.length > 0
+                        ? "انتقل إلى التحدي ⚡"
+                        : "عرض النتيجة 🏆"}
                   </button>
                 )}
               </>
             ) : (
-              <div style={{ textAlign: "center", padding: "20px 10px" }}>
-                <div style={{ fontSize: "40px", marginBottom: "10px" }}>
+              <div style={{ textAlign: "center", padding: "12px 6px" }}>
+                <div
+                  aria-hidden="true"
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "12px",
+                    backgroundColor: "#0f172a",
+                    border: "1px solid #334155",
+                    fontSize: "24px",
+                    marginBottom: "10px",
+                  }}
+                >
                   🎯
                 </div>
 
@@ -973,10 +1113,10 @@ function InteractiveLesson({
                     color: "#e2e8f0",
                     fontSize: "16px",
                     fontWeight: "bold",
-                    marginBottom: "8px",
+                    marginBottom: "6px",
                   }}
                 >
-                  لا توجد تدريبات قواعد لهذا الدرس.
+                  لا توجد تدريبات على القواعد لهذا الدرس.
                 </div>
 
                 <button
@@ -1005,7 +1145,9 @@ function InteractiveLesson({
                     cursor: "pointer",
                   }}
                 >
-                  متابعة ⚡
+                  {challenge.length > 0
+                    ? "انتقل إلى التحدي ⚡"
+                    : "عرض النتيجة 🏆"}
                 </button>
               </div>
             )}
@@ -1044,11 +1186,12 @@ function InteractiveLesson({
               }}
             >
               <div
+                dir="auto"
                 style={{
                   color: "#fff",
                   fontSize: "18px",
                   fontWeight: "bold",
-                  textAlign: "center",
+                  textAlign: "start",
                 }}
               >
                 {currentChallenge?.question}
@@ -1073,10 +1216,12 @@ function InteractiveLesson({
                     <button
                       key={`${option}-${index}`}
                       type="button"
+                      dir="auto"
                       onClick={() => answerChallenge(option)}
                       disabled={challengeAnswer !== null}
                       style={{
                         width: "100%",
+                        textAlign: "start",
                         padding: "13px",
                         borderRadius: "9px",
                         border: correct

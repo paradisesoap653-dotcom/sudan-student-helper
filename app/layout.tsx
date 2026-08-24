@@ -29,7 +29,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl">
-      <body>
+      <body
+        style={{
+          minHeight: "100%",
+          margin: 0,
+          backgroundColor: "#0f172a",
+        }}
+      >
         <InstallAppButton />
         {children}
       </body>

@@ -155,20 +155,26 @@ export default function LessonPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
-
-        <div className="text-center">
-
-          <div className="text-5xl mb-4">
+      <div
+        style={{
+          minHeight: "100dvh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "24px",
+          backgroundColor: "#0f172a",
+          color: "#fff",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>
             📖
           </div>
 
-          <p className="text-slate-300">
+          <p style={{ color: "#cbd5e1" }}>
             جاري تحميل الدرس...
           </p>
-
         </div>
-
       </div>
     );
   }
@@ -181,30 +187,59 @@ export default function LessonPage() {
 
   if (error || !lesson) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
-
-        <div className="text-center p-8 bg-slate-900 rounded-xl border border-red-500/30 max-w-md w-full">
-
-          <div className="text-5xl mb-4">
+      <div
+        style={{
+          minHeight: "100dvh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "24px",
+          backgroundColor: "#0f172a",
+          color: "#fff",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: "448px",
+            padding: "32px",
+            textAlign: "center",
+            backgroundColor: "#1e293b",
+            borderRadius: "12px",
+            border: "1px solid rgba(239,68,68,0.3)",
+          }}
+        >
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>
             😔
           </div>
 
-          <p className="text-red-400 font-bold text-lg mb-4">
+          <p
+            style={{
+              color: "#f87171",
+              fontSize: "18px",
+              fontWeight: "bold",
+              marginBottom: "16px",
+            }}
+          >
             عذراً، هذا الدرس غير متوفر حالياً!
           </p>
 
           <button
             type="button"
-            onClick={() =>
-              router.back()
-            }
-            className="px-5 py-3 rounded-lg bg-blue-600 text-white font-bold"
+            onClick={() => router.back()}
+            style={{
+              padding: "12px 20px",
+              border: "none",
+              borderRadius: "8px",
+              backgroundColor: "#2563eb",
+              color: "#fff",
+              fontWeight: "bold",
+              cursor: "pointer",
+            }}
           >
             ➡️ العودة
           </button>
-
         </div>
-
       </div>
     );
   }
@@ -216,10 +251,15 @@ export default function LessonPage() {
    */
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-2 sm:p-6">
-
-      <div className="max-w-3xl mx-auto">
-
+    <div
+      style={{
+        minHeight: "100dvh",
+        padding: "8px",
+        backgroundColor: "#0f172a",
+        color: "#e2e8f0",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: "768px", margin: "0 auto" }}>
         <InteractiveLesson
           key={String(lesson.id)}
           lesson={lesson}
@@ -229,9 +269,7 @@ export default function LessonPage() {
           setVocabIndex={setVocabIndex}
           onExit={() => router.back()}
         />
-
       </div>
-
     </div>
   );
 }
