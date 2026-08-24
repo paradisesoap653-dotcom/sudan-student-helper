@@ -837,7 +837,12 @@ function InteractiveLesson({
      المراحل
   ========================================================= */
 
-  const stages = [
+  const stages: Array<{
+    id: LessonStage;
+    icon: string;
+    label: string;
+    available: boolean;
+  }> = [
     { id: "learn", icon: "📖", label: "تعلّم", available: true },
     {
       id: "vocabulary",
@@ -929,17 +934,29 @@ function InteractiveLesson({
           const isUnavailable = !item.available;
 
           return (
-            <div
+            <button
+              type="button"
               key={item.id}
+              onClick={() => {
+                if (item.available) {
+                  setStage(item.id);
+                }
+              }}
+              disabled={isUnavailable}
               aria-current={isCurrent && !isUnavailable ? "step" : undefined}
-              aria-disabled={isUnavailable || undefined}
-              title={isUnavailable ? "غير متاح لهذا الدرس" : item.label}
+              title={isUnavailable ? "غير متاح لهذا الدرس" : `الانتقال إلى ${item.label}`}
               style={{
                 flex: "1 0 56px",
                 minWidth: "56px",
+                padding: 0,
+                border: "none",
+                background: "transparent",
+                fontFamily: "inherit",
                 textAlign: "center",
                 opacity: isUnavailable ? 0.58 : isReached ? 1 : 0.78,
                 scrollSnapAlign: "start",
+                cursor: isUnavailable ? "not-allowed" : "pointer",
+                WebkitTapHighlightColor: "transparent",
               }}
             >
               <div
@@ -975,7 +992,7 @@ function InteractiveLesson({
                 <span aria-hidden="true">{item.icon}</span>
                 <span>{item.label}</span>
               </div>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -1158,27 +1175,24 @@ function InteractiveLesson({
             >
               <button
                 type="button"
-                disabled={vocabIndex === 0}
-                onClick={() =>
-                  setVocabIndex(vocabIndex - 1)
-                }
+                onClick={() => {
+                  if (vocabIndex > 0) {
+                    setVocabIndex(vocabIndex - 1);
+                  } else {
+                    setStage("learn");
+                  }
+                }}
                 style={{
                   flex: 1,
                   padding: "10px",
                   borderRadius: "8px",
                   border: "1px solid #334155",
                   backgroundColor: "transparent",
-                  color:
-                    vocabIndex === 0
-                      ? "#475569"
-                      : "#fff",
-                  cursor:
-                    vocabIndex === 0
-                      ? "default"
-                      : "pointer",
+                  color: "#fff",
+                  cursor: "pointer",
                 }}
               >
-                السابق
+                {vocabIndex === 0 ? "السابق: التعلّم" : "السابق"}
               </button>
 
               {vocabIndex < vocab.length - 1 ? (
