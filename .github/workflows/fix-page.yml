@@ -60,7 +60,7 @@ jobs:
 
       - name: Install dependencies and run a production build
         run: |
-          npm ci
+          npm install --no-audit --no-fund
           npm run build
 
       - name: Commit and push the verified fixes
