@@ -221,16 +221,13 @@ export default function LessonPage() {
       <div className="max-w-3xl mx-auto">
 
         <InteractiveLesson
+          key={String(lesson.id)}
           lesson={lesson}
           stage={stage}
           setStage={setStage}
           vocabIndex={vocabIndex}
-          setVocabIndex={
-            setVocabIndex
-          }
-          onExit={() =>
-            router.back()
-          }
+          setVocabIndex={setVocabIndex}
+          onExit={() => router.back()}
         />
 
       </div>

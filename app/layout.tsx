@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import InstallAppButton from "@/components/InstallAppButton";
 
 export const metadata: Metadata = {
@@ -16,7 +16,9 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "مساعد الشهادة",
   },
+};
 
+export const viewport: Viewport = {
   themeColor: "#0f172a",
 };
 

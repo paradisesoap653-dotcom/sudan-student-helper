@@ -353,6 +353,45 @@ function shuffleArray<T>(items: T[]): T[] {
   return result;
 }
 
+function normalizeOptions(value: any): string[] {
+  let parsedValue = value;
+
+  if (typeof parsedValue === "string") {
+    try {
+      parsedValue = JSON.parse(parsedValue);
+    } catch {
+      return [];
+    }
+  }
+
+  if (
+    parsedValue &&
+    typeof parsedValue === "object" &&
+    !Array.isArray(parsedValue)
+  ) {
+    parsedValue = Object.values(parsedValue);
+  }
+
+  if (!Array.isArray(parsedValue)) {
+    return [];
+  }
+
+  return parsedValue
+    .map((option: any) => {
+      if (typeof option === "string") return option;
+      if (typeof option === "number") return String(option);
+
+      if (option && typeof option === "object") {
+        return String(
+          option.text ?? option.label ?? option.value ?? ""
+        );
+      }
+
+      return String(option ?? "");
+    })
+    .filter((option: string) => option.trim() !== "");
+}
+
 /* =========================================================
    Interactive Lesson
 ========================================================= */
@@ -365,7 +404,27 @@ function InteractiveLesson({
   setVocabIndex,
   onExit,
 }: any) {
-  const data = lesson.content_json || {};
+  const data = useMemo(() => {
+    const rawContent = lesson?.content_json;
+
+    if (!rawContent) {
+      return {};
+    }
+
+    if (typeof rawContent === "string") {
+      try {
+        const parsedContent = JSON.parse(rawContent);
+        return parsedContent && typeof parsedContent === "object"
+          ? parsedContent
+          : {};
+      } catch (error) {
+        console.error("Failed to parse lesson.content_json:", error);
+        return {};
+      }
+    }
+
+    return typeof rawContent === "object" ? rawContent : {};
+  }, [lesson?.content_json]);
 
   const vocab = Array.isArray(data.vocabulary)
     ? data.vocabulary
@@ -568,25 +627,53 @@ function InteractiveLesson({
      Grammar
   ========================================================= */
 
-  const practiceVerbs = Array.isArray(grammar.practice_verbs)
-    ? grammar.practice_verbs
-    : [];
+  const grammarQuestions = useMemo(() => {
+    /*
+      المصدر الأساسي هو JSON المضمّن داخل سجل الدرس:
+      content_json.grammar.questions
+    */
+    const embeddedQuestions = Array.isArray(grammar?.questions)
+      ? grammar.questions
+      : [];
 
-  const pastTenses: Record<string, string> = {
-    arrive: "arrived",
-    buy: "bought",
-    catch: "caught",
-    earn: "earned",
-    help: "helped",
-    keep: "kept",
-    live: "lived",
-    run: "ran",
-    visit: "visited",
-    win: "won",
-  };
+    if (embeddedQuestions.length > 0) {
+      return embeddedQuestions.map((item: any, index: number) => ({
+        id: item?.id ?? `${lesson?.id ?? "lesson"}-grammar-${index}`,
+        question:
+          item?.question ??
+          item?.question_text ??
+          item?.text ??
+          "",
+        answer:
+          item?.answer ??
+          item?.correct_answer ??
+          "",
+        options: shuffleArray(normalizeOptions(item?.options)),
+        explanation: item?.explanation ?? "",
+      }));
+    }
 
-  let grammarQuestions = practiceVerbs.map((verb: string) => {
-    const answer = pastTenses[verb] || `${verb}ed`;
+    /*
+      توافق مؤقت مع الدروس القديمة التي ما زالت تستخدم
+      grammar.practice_verbs فقط. لا يُستخدم هذا المسار عندما
+      تكون grammar.questions موجودة.
+    */
+    const practiceVerbs = Array.isArray(grammar?.practice_verbs)
+      ? grammar.practice_verbs
+      : [];
+
+    const pastTenses: Record<string, string> = {
+      arrive: "arrived",
+      buy: "bought",
+      catch: "caught",
+      earn: "earned",
+      help: "helped",
+      keep: "kept",
+      live: "lived",
+      run: "ran",
+      visit: "visited",
+      win: "won",
+    };
 
     const optionsMap: Record<string, string[]> = {
       arrive: ["arrived", "arrive", "arriving", "arriven"],
@@ -601,23 +688,25 @@ function InteractiveLesson({
       win: ["winned", "won", "wins", "winning"],
     };
 
-    return {
-      question: `What is the past tense of "${verb}"?`,
-      answer,
-      options: shuffleArray(
-        optionsMap[verb] || [
-          answer,
-          verb,
-          `${verb}ing`,
-          `${verb}s`,
-        ]
-      ),
-    };
-  });
+    return practiceVerbs.map((verb: string, index: number) => {
+      const answer = pastTenses[verb] || `${verb}ed`;
 
-  if (Array.isArray(grammar?.questions) && grammar.questions.length > 0) {
-  grammarQuestions = grammar.questions;
-}
+      return {
+        id: `${lesson?.id ?? "lesson"}-legacy-grammar-${index}`,
+        question: `What is the past tense of "${verb}"?`,
+        answer,
+        options: shuffleArray(
+          optionsMap[verb] || [
+            answer,
+            verb,
+            `${verb}ing`,
+            `${verb}s`,
+          ]
+        ),
+        explanation: "",
+      };
+    });
+  }, [grammar?.questions, grammar?.practice_verbs, lesson?.id]);
 
   const currentGrammar = grammarQuestions[grammarIndex];
 
@@ -1475,6 +1564,24 @@ function InteractiveLesson({
                 )}
               </div>
 
+              {grammarAnswer !== null &&
+                currentGrammar?.explanation && (
+                  <div
+                    style={{
+                      marginTop: "14px",
+                      padding: "12px",
+                      borderRadius: "9px",
+                      backgroundColor: "#172554",
+                      border: "1px solid #3b82f6",
+                      color: "#dbeafe",
+                      lineHeight: 1.7,
+                      fontSize: "14px",
+                    }}
+                  >
+                    💡 {currentGrammar.explanation}
+                  </div>
+                )}
+
               {grammarAnswer !== null && (
                 <button
                   type="button"
@@ -1845,7 +1952,7 @@ function InteractiveLesson({
                 marginBottom: "18px",
               }}
             >
-              أكملت درس Trees for Life
+              أكملت درس {lesson.lesson_title}
             </div>
 
             <div
@@ -2667,6 +2774,7 @@ export default function Home() {
                 {selectedLesson ? (
                   selectedLesson.content_json ? (
                     <InteractiveLesson
+                      key={String(selectedLesson.id)}
                       lesson={selectedLesson}
                       stage={lessonStage}
                       setStage={setLessonStage}

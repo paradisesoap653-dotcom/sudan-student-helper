@@ -147,15 +147,6 @@ function InteractiveLesson({
 
   const currentGrammar = grammarQuestions[grammarIndex];
 
-  useEffect(() => {
-    console.log("[Grammar content_json]", {
-      lessonId: lesson?.id,
-      lessonTitle: lesson?.lesson_title,
-      questionsCount: grammarQuestions.length,
-      questions: grammarQuestions,
-    });
-  }, [lesson?.id, lesson?.lesson_title, grammarQuestions]);
-
   // =========================================================
   // CHALLENGE
   // =========================================================
@@ -487,42 +478,6 @@ function InteractiveLesson({
         >
           {lesson?.lesson_title}
         </h3>
-
-        {/* ================================================= */}
-        {/* TEMP DEBUG PANEL — احذف هذا القسم بعد التشخيص */}
-        {/* ================================================= */}
-        <div
-          style={{
-            backgroundColor: "#450a0a",
-            border: "2px solid #ef4444",
-            borderRadius: "8px",
-            padding: "10px",
-            marginBottom: "16px",
-            fontSize: "11px",
-            color: "#fecaca",
-            direction: "ltr",
-            textAlign: "left",
-            wordBreak: "break-all",
-          }}
-        >
-          <div>stage: {String(stage)}</div>
-          <div>lesson.id: {String(lesson?.id)}</div>
-          <div>lesson_title: {String(lesson?.lesson_title)}</div>
-          <div>data keys: {Object.keys(data as any).join(", ") || "(empty)"}</div>
-          <div>grammar keys: {Object.keys(grammar).join(", ") || "(empty)"}</div>
-          <div>grammar.questions raw type: {typeof (grammar as any)?.questions}</div>
-          <div>
-            grammar.questions is array:{" "}
-            {String(Array.isArray((grammar as any)?.questions))}
-          </div>
-          <div>
-            grammar.questions raw length:{" "}
-            {Array.isArray((grammar as any)?.questions)
-              ? (grammar as any).questions.length
-              : "N/A"}
-          </div>
-          <div>grammarQuestions.length (final): {grammarQuestions.length}</div>
-        </div>
 
         {stage === "learn" && (
           <div>
