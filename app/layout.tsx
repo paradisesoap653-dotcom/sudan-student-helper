@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import InstallAppButton from "@/components/InstallAppButton";
+import UpdateBanner from "@/components/UpdateBanner";
 
 export const metadata: Metadata = {
   title: "مساعد الشهادة الثانوية السودانية",
@@ -37,6 +38,7 @@ export default function RootLayout({
         }}
       >
         <InstallAppButton />
+        <UpdateBanner />
         {children}
       </body>
     </html>
