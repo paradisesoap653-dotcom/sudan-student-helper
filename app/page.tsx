@@ -454,6 +454,7 @@ function InteractiveLesson({
   vocabIndex,
   setVocabIndex,
   onExit,
+  subjectName,
 }: any) {
   const data = useMemo(() => {
     const rawContent = lesson?.content_json;
@@ -904,7 +905,9 @@ function InteractiveLesson({
       >
         <span style={{ color: "#94a3b8" }}>المواد</span>
         <span aria-hidden="true" style={{ color: "#64748b" }}>←</span>
-        <span style={{ color: "#94a3b8" }}>اللغة الإنجليزية</span>
+        <span style={{ color: "#94a3b8" }}>
+          {subjectName || "الدروس"}
+        </span>
         <span aria-hidden="true" style={{ color: "#64748b" }}>←</span>
         <button
           type="button"
@@ -1058,7 +1061,7 @@ function InteractiveLesson({
                 marginBottom: "10px",
               }}
             >
-              📖 Learn
+              📖 التعلّم
             </div>
 
             {data.learn?.intro && (
@@ -1260,7 +1263,7 @@ function InteractiveLesson({
                 marginBottom: "6px",
               }}
             >
-              🧩 Match
+              🧩 المطابقة
             </div>
 
             <div
@@ -1355,7 +1358,7 @@ function InteractiveLesson({
                     marginBottom: "8px",
                   }}
                 >
-                  الكلمات 🇬🇧
+                  المصطلح 📘
                 </div>
 
                 <div
@@ -1433,7 +1436,7 @@ function InteractiveLesson({
                     marginBottom: "8px",
                   }}
                 >
-                  المعاني 🇸🇩
+                  المعنى ✅
                 </div>
 
                 <div
@@ -1628,7 +1631,7 @@ function InteractiveLesson({
                   marginBottom: "8px",
                 }}
               >
-                🎯 Grammar
+                🎯 الأسئلة
               </div>
 
               <div
@@ -1860,7 +1863,7 @@ function InteractiveLesson({
                   marginBottom: "8px",
                 }}
               >
-                ⚡ Challenge
+                ⚡ التحدي
               </div>
 
               <div
@@ -2274,7 +2277,7 @@ function InteractiveLesson({
                     fontSize: "10px",
                   }}
                 >
-                  Challenge
+                  التحدي
                 </div>
               </div>
             </div>
@@ -3034,6 +3037,7 @@ export default function Home() {
                     <InteractiveLesson
                       key={String(selectedLesson.id)}
                       lesson={selectedLesson}
+                      subjectName={subject?.name}
                       stage={lessonStage}
                       setStage={setLessonStage}
                       vocabIndex={vocabIndex}
