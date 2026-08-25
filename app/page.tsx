@@ -2361,6 +2361,10 @@ export default function Home() {
     []
   );
 
+  const [dbFiles, setDbFiles] = useState<
+    Record<string, FileItem[]>
+  >({});
+
   const [loadingLessons, setLoadingLessons] =
     useState(false);
 
@@ -2376,14 +2380,67 @@ export default function Home() {
      الملفات الحالية
   ======================================================= */
 
-  const currentFiles =
-    subject && tab !== "lessons"
-      ? CONTENT_DATABASE[subject.id]?.[tab] || []
-      : [];
+  const currentFiles = (() => {
+    if (!subject || tab === "lessons") return [];
+
+    const fromDb = dbFiles[subject.id + "|" + tab];
+    if (fromDb && fromDb.length > 0) return fromDb;
+
+    return CONTENT_DATABASE[subject.id]?.[tab] || [];
+  })();
 
   /* =======================================================
      تحميل الدروس
   ======================================================= */
+
+  useEffect(() => {
+    if (!subject || tab === "lessons") {
+      return;
+    }
+
+    const key = subject.id + "|" + tab;
+    if (dbFiles[key]) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadMaterials = async () => {
+      const { data, error } = await supabase
+        .from("materials")
+        .select("title, size, url, sort_order")
+        .eq("subject_id", subject.id)
+        .eq("tab", tab)
+        .order("sort_order", { ascending: true });
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error(
+          "Error loading materials:",
+          error
+        );
+        return;
+      }
+
+      const rows = (data || []).map((row: any) => ({
+        title: String(row.title || ""),
+        size: String(row.size || "PDF"),
+        url: String(row.url || ""),
+      }));
+
+      setDbFiles((previous) => ({
+        ...previous,
+        [key]: rows,
+      }));
+    };
+
+    loadMaterials();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [subject, tab, dbFiles]);
 
   useEffect(() => {
     if (tab !== "lessons" || !subject) {
