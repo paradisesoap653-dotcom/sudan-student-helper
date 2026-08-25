@@ -172,7 +172,7 @@ const CONTENT_DATABASE: Record<string, ContentItem> = {
       {
         title: "الكتاب المدرسي - الدراسات الإسلامية",
         size: "PDF",
-        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Drasat%20",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Drasate.pdf",
       },
     ],
     exams: [],
@@ -186,7 +186,18 @@ const CONTENT_DATABASE: Record<string, ContentItem> = {
         url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/eng.pdf",
       },
     ],
-    exams: [],
+    exams: [
+      {
+        title: "النماذج المتوقعة 2027 — 5 امتحانات كاملة",
+        size: "PDF · 23 صفحة · كل نموذج 100 درجة / 3 ساعات",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/exams.pdf",
+      },
+      {
+        title: "نماذج الإجابة 2027 — حلول النماذج الخمسة",
+        size: "PDF · 15 صفحة · إجابات كاملة + توزيع الدرجات",
+        url: "https://lhxebcykgdyxehcyohzk.supabase.co/storage/v1/object/public/materials/Answers.pdf",
+      },
+    ],
   },
 
   french: {
