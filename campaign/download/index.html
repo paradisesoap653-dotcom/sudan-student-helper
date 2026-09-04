@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تنزيل التعليق الصوتي</title>
+<style>
+  :root { --navy:#0f172a; --navy2:#1e293b; --gold:#d4af37; --green:#22c55e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:'Cairo','Segoe UI',Tahoma,sans-serif; background:var(--navy); color:#fff; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .card { width:100%; max-width:460px; background:var(--navy2); border:1px solid #334155; border-radius:20px; padding:28px; text-align:center; box-shadow:0 15px 40px rgba(0,0,0,.45); }
+  .logo { width:64px; height:64px; margin:0 auto 12px; background:var(--navy); border:1px solid rgba(212,175,55,.4); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:30px; }
+  h1 { font-size:22px; margin:0 0 6px; color:var(--gold); }
+  p.sub { color:#94a3b8; font-size:14px; margin:0 0 22px; line-height:1.7; }
+  .btn { display:flex; align-items:center; justify-content:center; gap:10px; text-decoration:none; color:#fff; font-weight:bold; font-size:15px; padding:15px; border-radius:12px; margin-bottom:12px; transition:transform .15s, filter .15s; }
+  .btn:hover { transform:translateY(-2px); filter:brightness(1.1); }
+  .btn.mp3 { background:var(--green); }
+  .btn.m4a { background:#0ea5e9; }
+  .btn.zip { background:#8b5cf6; }
+  .btn small { display:block; font-weight:normal; opacity:.85; font-size:12px; }
+  .note { font-size:12px; color:#64748b; margin-top:18px; line-height:1.6; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">🎓</div>
+  <h1>التعليق الصوتي جاهز</h1>
+  <p class="sub">مساعد الشهادة الثانوية السودانية<br>مقطع واحد مدمج (3:25) + المقاطع المنفصلة</p>
+
+  <a class="btn mp3" href="voiceover_full.mp3" download>
+    🎧 تنزيل التعليق الصوتي كامل (MP3)
+    <small>3:25 دقيقة · الأفضل لبرامج المونتاج</small>
+  </a>
+
+  <a class="btn m4a" href="voiceover_full.m4a" download>
+    🎧 تنزيل نسخة M4A
+    <small>أخفّ حجمًا · مثالي للموبايل</small>
+  </a>
+
+  <a class="btn zip" href="clips_separate.zip" download>
+    📦 تنزيل المقاطع المنفصلة (ZIP)
+    <small>10 مقاطع منفصلة — لكل جزء لوحده عند القص</small>
+  </a>
+
+  <div class="note">لو ما اشتغل زر التنزيل، اضغط الزر بزر الفأرة الأيمن واختر «حفظ الرابط باسم».<br>التوقيتات التفصيلية لكل جزء في ملف توقيتات المقطع المدمج.</div>
+</div>
+</body>
+</html>
