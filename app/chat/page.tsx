@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import GabsterEmbedded from "@/components/GabsterEmbedded";
 import LocalChatFallback from "@/components/LocalChatFallback";
+import SmartChat from "@/components/SmartChat";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -97,6 +98,24 @@ export default function ChatPage() {
           </div>
         </div>
 
+        {/* المساعد الذكي الجديد - يجيب من كتبك ودروسك */}
+        <div style={{ marginBottom: "16px" }}>
+          <div
+            style={{
+              fontSize: "13px",
+              color: "#fbbf24",
+              marginBottom: "8px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontWeight: "bold",
+            }}
+          >
+            <span>⭐</span> المساعد الذكي — يجيب من كتبك ودروسك (الأفضل)
+          </div>
+          <SmartChat />
+        </div>
+
         {/* لوحة Gabster المضمنة */}
         <div style={{ marginBottom: "6px" }}>
           <div
@@ -109,12 +128,12 @@ export default function ChatPage() {
               gap: "6px",
             }}
           >
-            <span>🟦</span> لوحة Gabster المضمّنة (داخل الصفحة)
+            <span>🟦</span> لوحة Gabster المضمّنة (اختيارية)
           </div>
           <GabsterEmbedded />
         </div>
 
-        {/* دردشة بديلة محلية */}
+        {/* دردشة بديلة محلية - قديمة */}
         <div style={{ marginTop: "18px" }}>
           <div
             style={{
@@ -126,7 +145,7 @@ export default function ChatPage() {
               gap: "6px",
             }}
           >
-            <span>🟩</span> دردشة بديلة (تظهر فوراً حتى لو Gabster محجوب)
+            <span>🟩</span> دردشة بديلة بسيطة (للمقارنة)
           </div>
           <LocalChatFallback />
         </div>
