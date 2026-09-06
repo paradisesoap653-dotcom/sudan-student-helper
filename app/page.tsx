@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { supabase } from "../supabaseClient";
 
 /* =========================================================
@@ -2923,6 +2924,28 @@ export default function Home() {
               >
                 ⚡ الدروس
               </button>
+
+              <Link
+                href="/chat"
+                style={{
+                  flex: 1,
+                  padding: "10px 4px",
+                  borderRadius: "7px",
+                  backgroundColor: "#7c3aed",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  fontSize: "12px",
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "3px",
+                  border: "1px solid #a78bfa",
+                }}
+              >
+                💬 الدردشة
+              </Link>
             </div>
 
             {/* =================================================
