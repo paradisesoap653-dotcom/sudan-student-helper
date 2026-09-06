@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import InstallAppButton from "@/components/InstallAppButton";
 import UpdateBanner from "@/components/UpdateBanner";
 import GabsterWidget from "@/components/GabsterWidget";
+import ChatFAB from "@/components/ChatFAB";
 
 export const metadata: Metadata = {
   title: "مساعد الشهادة الثانوية السودانية",
@@ -41,6 +42,7 @@ export default function RootLayout({
         <InstallAppButton />
         <UpdateBanner />
         <GabsterWidget />
+        <ChatFAB />
         {children}
       </body>
     </html>
