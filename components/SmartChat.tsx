@@ -171,7 +171,7 @@ export default function SmartChat() {
                 {m.provider === "groq" && "⚡ عبر Groq"}
                 {m.provider === "gemini" && "✨ عبر Gemini"}
                 {m.provider === "openai" && "🧠 عبر OpenAI"}
-                {m.provider === "fallback" && "🔧 وضع تجريبي (أضف مفتاح لذكاء أعلى)"}
+                {m.provider === "fallback" && "🔧 وضع تجريبي — الذكاء الاصطناعي غير متاح حالياً"}
               </div>
             )}
           </div>

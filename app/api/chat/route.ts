@@ -1,35 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getAIStatus } from "@/lib/ai-config";
+import { generateChatAnswer, MAX_MESSAGE_LENGTH, normalizeHistory } from "@/lib/chat-providers";
+
+export const runtime = "nodejs";
+// Three bounded provider attempts (15s each) plus lesson retrieval (5s).
+export const maxDuration = 60;
 
 const supabaseUrl = "https://lhxebcykgdyxehcyohzk.supabase.co";
 const supabaseKey = "sb_publishable_hMGP3EMJNixAVn5liDeh1Q_K10Eiyeu";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// نفس قاعدة الكتب المختصرة للاستخدام في السياق
-const BOOK_TITLES: Record<string, string[]> = {
-  math: ["الرياضيات المتخصصة 1", "الرياضيات المتخصصة 2"],
-  mathBasic: ["الرياضيات الأساسية"],
-  physics: ["الفيزياء 1", "الفيزياء 2", "الفيزياء 3", "الفيزياء 4"],
-  chemistry: ["الكيمياء"],
-  biology: ["الأحياء"],
-  arabic: ["اللغة العربية", "المطالعة والأدب", "البلاغة", "القواعد", "الدراسات اللغوية"],
-  english: ["اللغة الإنجليزية"],
-  french: ["اللغة الفرنسية"],
-  history: ["التاريخ"],
-  geography: ["الجغرافيا"],
-};
-
 async function searchLessons(query: string) {
   const clean = query.trim().slice(0, 80);
   if (!clean) return [];
 
+  const signal = AbortSignal.timeout(5_000);
   try {
     // نبحث في العناوين والمحتوى النصي
     const { data, error } = await supabase
       .from("lessons")
       .select("id, lesson_title, unit_title, subject_id, content, content_json")
       .or(`lesson_title.ilike.%${clean}%,unit_title.ilike.%${clean}%`)
-      .limit(5);
+      .limit(5)
+      .abortSignal(signal);
 
     if (error) {
       console.error("searchLessons error:", error);
@@ -42,7 +36,8 @@ async function searchLessons(query: string) {
       const { data: all } = await supabase
         .from("lessons")
         .select("id, lesson_title, unit_title, subject_id, content_json")
-        .limit(30);
+        .limit(30)
+        .abortSignal(signal);
       if (all) {
         const q = clean.toLowerCase();
         extra = all
@@ -92,172 +87,47 @@ function buildContext(lessons: any[], query: string) {
   return `هذه مقتطفات من قاعدة بيانات مساعد الشهادة السودانية (كتب ودروس حقيقية). استخدمها كسياق أساسي للإجابة:\n\n${parts.join("\n")}\n\nإذا كان السياق كافياً أجب منه مع ذكر المصدر (اسم الدرس/الوحدة). إذا لم يكن كافياً، أجب كأستاذ سوداني خبير بشكل مبسط ومباشر، مع تنبيه أن التفصيل موجود في الكتب أعلاه.\n`;
 }
 
-async function callGroq(prompt: string, context: string, history: any[]) {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) return null;
-  try {
-    const messages = [
-      {
-        role: "system",
-        content: `أنت مساعد الشهادة السودانية 🇸🇩. أستاذ خبير تشرح ببساطة باللهجة السودانية والعربية الفصحى المبسطة، مع أمثلة وحلول خطوة بخطوة. تلتزم بالمنهج السوداني. تذكر المصادر (اسم الكتاب/الدرس) عند الإجابة من السياق.
-
-السياق من قاعدة البيانات:
-${context}
-
-قواعد:
-- أجب بالعربية (اسمح بالإنجليزية عند شرح الإنجليزية)
-- بسّط الشرح، استخدم نقاط وترقيم
-- إذا كان السؤال عن حل مسألة، اشرح الخطوات
-- لا تخترع مراجع غير موجودة
-- إذا لا تعرف، قل بصراحة واقترح مراجعة الكتاب`,
-      },
-      ...history.slice(-6).map((m: any) => ({
-        role: m.role === "bot" ? "assistant" : "user",
-        content: m.text,
-      })),
-      { role: "user", content: prompt },
-    ];
-
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
-        messages,
-        temperature: 0.7,
-        max_tokens: 900,
-      }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      console.error("Groq error:", json);
-      return null;
-    }
-    return json.choices?.[0]?.message?.content || null;
-  } catch (e) {
-    console.error("callGroq exception:", e);
-    return null;
-  }
-}
-
-async function callGemini(prompt: string, context: string, history: any[]) {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) return null;
-  try {
-    const historyText = history
-      .slice(-4)
-      .map((m: any) => `${m.role === "bot" ? "المساعد" : "الطالب"}: ${m.text}`)
-      .join("\n");
-    const fullPrompt = `أنت مساعد الشهادة السودانية. السياق:\n${context}\n\nسجل المحادثة:\n${historyText}\n\nسؤال الطالب الحالي: ${prompt}\n\nأجب بالعربية ببساطة مع ذكر المصدر إن وجد.`;
-
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: fullPrompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 900 },
-        }),
-      }
-    );
-    const json = await res.json();
-    if (!res.ok) {
-      console.error("Gemini error:", json);
-      return null;
-    }
-    return json.candidates?.[0]?.content?.parts?.[0]?.text || null;
-  } catch (e) {
-    console.error("callGemini exception:", e);
-    return null;
-  }
-}
-
-async function callOpenAI(prompt: string, context: string, history: any[]) {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return null;
-  try {
-    const messages = [
-      {
-        role: "system",
-        content: `أنت مساعد الشهادة السودانية. السياق:\n${context}`,
-      },
-      ...history.slice(-6).map((m: any) => ({
-        role: m.role === "bot" ? "assistant" : "user",
-        content: m.text,
-      })),
-      { role: "user", content: prompt },
-    ];
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages,
-        temperature: 0.7,
-        max_tokens: 900,
-      }),
-    });
-    const json = await res.json();
-    if (!res.ok) {
-      console.error("OpenAI error:", json);
-      return null;
-    }
-    return json.choices?.[0]?.message?.content || null;
-  } catch (e) {
-    console.error("callOpenAI exception:", e);
-    return null;
-  }
-}
-
 export async function POST(req: NextRequest) {
+  let body;
   try {
-    const { message, history = [] } = await req.json();
-    if (!message || typeof message !== "string" || !message.trim()) {
-      return NextResponse.json({ error: "الرسالة فارغة" }, { status: 400 });
-    }
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "صيغة JSON غير صالحة" }, { status: 400 });
+  }
 
+  if (!body || typeof body.message !== "string" || !body.message.trim()) {
+    return NextResponse.json({ error: "الرسالة فارغة أو غير صالحة" }, { status: 400 });
+  }
+  const message = body.message.trim();
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    return NextResponse.json({ error: "الرسالة طويلة جداً؛ يرجى اختصارها" }, { status: 400 });
+  }
+  const history = normalizeHistory(body.history);
+
+  try {
     const lessons = await searchLessons(message);
     const context = buildContext(lessons, message);
+    const result = await generateChatAnswer(message, context, history);
+    let answer = result?.answer;
 
-    // نحاول بالترتيب: Groq -> Gemini -> OpenAI
-    let answer: string | null = null;
-    let provider: string | null = null;
-
-    answer = await callGroq(message, context, history);
-    if (answer) provider = "groq";
-
-    if (!answer) {
-      answer = await callGemini(message, context, history);
-      if (answer) provider = "gemini";
-    }
-    if (!answer) {
-      answer = await callOpenAI(message, context, history);
-      if (answer) provider = "openai";
-    }
-
-    // Fallback محلي إذا لا يوجد مفتاح API
+    // تبقى المقتطفات المحلية متاحة عند غياب المفاتيح أو تعطل جميع المزودين.
     if (!answer) {
       const lessonList =
         lessons.length > 0
           ? lessons
               .map((l: any) => `• ${l.lesson_title} (${l.unit_title} - ${l.subject_id})`)
               .join("\n")
-          : "• لم أجد درس مطابق، لكن يمكنك مراجعة تبويب الكتب والدروس";
+          : "• لم أجد درساً مطابقاً، لكن يمكنك مراجعة تبويب الكتب والدروس";
+      const notice = getAIStatus().mode === "ai"
+        ? "خدمات الذكاء الاصطناعي غير متاحة مؤقتاً. هذه مقتطفات محلية وليست إجابة مولّدة؛ حاول مرة أخرى لاحقاً."
+        : "هذه مقتطفات محلية وليست إجابة مولّدة. لتفعيل المساعد، أضف GROQ_API_KEY أو GEMINI_API_KEY في إعدادات Vercel ثم أعد النشر.";
 
-      answer = `🔍 بحثت في قاعدة بياناتك ووجدت:\n${lessonList}\n\n📌 السياق:\n${context.slice(0, 700)}\n\n💡 **وضع بدون مفتاح AI:** هذه إجابة تجريبية. لإجابات ذكية ومفصلة، أضف مفتاح Groq أو Gemini (مجاني) في إعدادات Vercel وسيرد المساعد بأسلوب أستاذ كامل مع شرح خطوة بخطوة.\n\nجرّب تسأل مثلاً: "اشرح لي مصفوفات" أو "ما قانون نيوتن الثاني؟"`;
-      provider = "fallback";
+      answer = `🔍 نتائج البحث في الدروس:\n${lessonList}\n\n📌 السياق:\n${context.slice(0, 700)}\n\n💡 **الوضع التجريبي:** ${notice}\n\nجرّب تسأل مثلاً: "اشرح لي مصفوفات" أو "ما قانون نيوتن الثاني؟"`;
     }
 
     return NextResponse.json({
       answer,
-      provider,
+      provider: result?.provider || "fallback",
       sources: lessons.map((l: any) => ({
         id: l.id,
         title: l.lesson_title,
@@ -265,8 +135,8 @@ export async function POST(req: NextRequest) {
         subject: l.subject_id,
       })),
     });
-  } catch (e: any) {
-    console.error("chat route error:", e);
+  } catch {
+    console.error("[chat] Unexpected route error");
     return NextResponse.json({ error: "حدث خطأ في الخادم" }, { status: 500 });
   }
 }

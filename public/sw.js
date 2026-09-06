@@ -1,4 +1,4 @@
-const VERSION = "v4-2026-08-25-a";
+const VERSION = "v5-2026-09-06-a";
 const CACHE_NAME = "sudan-student-helper-" + VERSION;
 
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icon.svg"];
@@ -45,7 +45,9 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
 
-  if (url.origin !== self.location.origin) return;
+  // API responses (especially health) must never be cached or replaced with
+  // an offline HTML page. Let the browser handle these requests directly.
+  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
 
   event.respondWith(
     fetch(request)
