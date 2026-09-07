@@ -2926,7 +2926,7 @@ export default function Home() {
               </button>
 
               <Link
-                href="/chat"
+  href={`/chat?subject=${subject.id}`}
                 style={{
                   flex: 1,
                   padding: "10px 4px",
