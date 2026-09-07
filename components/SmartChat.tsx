@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
+import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 
 type Msg = { role: "user" | "bot"; text: string; sources?: any[]; provider?: string };
@@ -78,6 +79,29 @@ export default function SmartChat({ subjectId }: { subjectId?: string | null }) 
         height: "520px",
       }}
     >
+      <style>{`
+        .chat-markdown table {
+          border-collapse: collapse;
+          width: 100%;
+          margin: 8px 0;
+          font-size: 12px;
+        }
+        .chat-markdown th,
+        .chat-markdown td {
+          border: 1px solid #334155;
+          padding: 6px 8px;
+          text-align: right;
+        }
+        .chat-markdown th {
+          background-color: #0f172a;
+          color: #fbbf24;
+          font-weight: bold;
+        }
+        .chat-markdown tr:nth-child(even) {
+          background-color: rgba(255,255,255,0.03);
+        }
+      `}</style>
+
       <div
         style={{
           padding: "12px 14px",
@@ -147,10 +171,11 @@ export default function SmartChat({ subjectId }: { subjectId?: string | null }) 
                 lineHeight: 1.7,
                 border: m.role === "bot" ? "1px solid #334155" : "none",
                 boxShadow: m.role === "bot" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+                overflowX: "auto",
               }}
             >
               {m.role === "bot" ? (
-                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                <ReactMarkdown remarkPlugins={[remarkMath, remarkGfm]} rehypePlugins={[rehypeKatex]}>
                   {m.text}
                 </ReactMarkdown>
               ) : (
