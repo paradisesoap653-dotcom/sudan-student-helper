@@ -18,6 +18,7 @@ export default function SmartChat({ subjectId }: { subjectId?: string | null }) 
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     listRef.current?.scrollTo(0, listRef.current.scrollHeight);
@@ -65,6 +66,11 @@ export default function SmartChat({ subjectId }: { subjectId?: string | null }) 
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSourceClick = (title: string) => {
+    setInput(`اشرح لي درس: ${title}`);
+    inputRef.current?.focus();
   };
 
   return (
@@ -185,8 +191,10 @@ export default function SmartChat({ subjectId }: { subjectId?: string | null }) 
             {m.sources && m.sources.length > 0 && (
               <div style={{ maxWidth: "86%", display: "flex", flexWrap: "wrap", gap: "6px" }}>
                 {m.sources.map((s: any, idx: number) => (
-                  <span
+                  <button
                     key={idx}
+                    type="button"
+                    onClick={() => handleSourceClick(s.title)}
                     style={{
                       fontSize: "10px",
                       backgroundColor: "#172554",
@@ -194,10 +202,12 @@ export default function SmartChat({ subjectId }: { subjectId?: string | null }) 
                       color: "#93c5fd",
                       padding: "4px 8px",
                       borderRadius: "999px",
+                      cursor: "pointer",
+                      fontFamily: "inherit",
                     }}
                   >
                     📖 {s.title} • {s.unit}
-                  </span>
+                  </button>
                 ))}
               </div>
             )}
@@ -238,6 +248,7 @@ export default function SmartChat({ subjectId }: { subjectId?: string | null }) 
         }}
       >
         <input
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
