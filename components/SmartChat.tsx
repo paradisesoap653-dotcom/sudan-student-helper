@@ -7,7 +7,7 @@ import rehypeKatex from "rehype-katex";
 
 type Msg = { role: "user" | "bot"; text: string; sources?: any[]; provider?: string };
 
-export default function SmartChat() {
+export default function SmartChat({ subjectId }: { subjectId?: string | null }) {
   const [messages, setMessages] = useState<Msg[]>([
     {
       role: "bot",
@@ -38,6 +38,7 @@ export default function SmartChat() {
         body: JSON.stringify({
           message: text,
           history: messages,
+          subject: subjectId || undefined,
         }),
       });
       const data = await res.json();
