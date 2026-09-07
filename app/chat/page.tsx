@@ -9,7 +9,13 @@ export const metadata: Metadata = {
   description: "دردشة مساعد الطالب - اسأل عن أي مادة",
 };
 
-export default function ChatPage() {
+export default function ChatPage({
+  searchParams,
+}: {
+  searchParams: { subject?: string };
+}) {
+  const subjectId = searchParams?.subject || null;
+
   return (
     <main
       dir="rtl"
@@ -113,7 +119,7 @@ export default function ChatPage() {
           >
             <span>⭐</span> المساعد الذكي — يجيب من كتبك ودروسك (الأفضل)
           </div>
-          <SmartChat />
+          <SmartChat subjectId={subjectId} />
         </div>
 
         {/* لوحة Gabster المضمنة */}
