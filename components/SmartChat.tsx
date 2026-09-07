@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 
 type Msg = { role: "user" | "bot"; text: string; sources?: any[]; provider?: string };
 
@@ -132,6 +135,7 @@ export default function SmartChat() {
         {messages.map((m, i) => (
           <div key={i} style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: m.role === "user" ? "flex-end" : "flex-start" }}>
             <div
+              className="chat-markdown"
               style={{
                 maxWidth: "86%",
                 padding: "11px 13px",
@@ -140,12 +144,17 @@ export default function SmartChat() {
                 color: m.role === "user" ? "#fff" : "#e2e8f0",
                 fontSize: "13px",
                 lineHeight: 1.7,
-                whiteSpace: "pre-wrap",
                 border: m.role === "bot" ? "1px solid #334155" : "none",
                 boxShadow: m.role === "bot" ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
               }}
             >
-              {m.text}
+              {m.role === "bot" ? (
+                <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
+                  {m.text}
+                </ReactMarkdown>
+              ) : (
+                <span style={{ whiteSpace: "pre-wrap" }}>{m.text}</span>
+              )}
             </div>
             {m.sources && m.sources.length > 0 && (
               <div style={{ maxWidth: "86%", display: "flex", flexWrap: "wrap", gap: "6px" }}>
