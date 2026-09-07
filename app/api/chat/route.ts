@@ -11,7 +11,7 @@ const supabaseUrl = "https://lhxebcykgdyxehcyohzk.supabase.co";
 const supabaseKey = "sb_publishable_hMGP3EMJNixAVn5liDeh1Q_K10Eiyeu";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-async function searchLessons(query: string) {
+async function searchLessons(query: string, subjectId?: string) {
   const clean = query.trim().slice(0, 80);
   if (!clean) return [];
 
@@ -26,38 +26,90 @@ async function searchLessons(query: string) {
 
   const signal = AbortSignal.timeout(5_000);
   try {
-    // نبني شرط OR لكل كلمة مفتاحية على عنوان الدرس والوحدة
     const orConditions = keywords
       .map((k) => `lesson_title.ilike.%${k}%,unit_title.ilike.%${k}%`)
       .join(",");
 
-    const { data, error } = await supabase
-      .from("lessons")
-      .select("id, lesson_title, unit_title, subject_id, content_json")
-      .or(orConditions)
-      .limit(5)
-      .abortSignal(signal);
+    // ============================================
+    // المرحلة 1: بحث مقيّد بالمادة الحالية (لو موجودة)
+    // ============================================
+    let data: any[] | null = null;
 
-    if (error) {
-      console.error("searchLessons error:", error);
-      return [];
+    if (subjectId) {
+      const { data: subjectData, error: subjectError } = await supabase
+        .from("lessons")
+        .select("id, lesson_title, unit_title, subject_id, content_json")
+        .eq("subject_id", subjectId)
+        .or(orConditions)
+        .limit(5)
+        .abortSignal(signal);
+
+      if (subjectError) {
+        console.error("searchLessons error (subject-scoped):", subjectError);
+      } else {
+        data = subjectData;
+      }
+    }
+
+    // ============================================
+    // المرحلة 2: لو مفيش نتائج كافية جوّه المادة، نوسّع البحث لكل المواد
+    // ============================================
+    if (!data || data.length === 0) {
+      const { data: allSubjectsData, error: allSubjectsError } = await supabase
+        .from("lessons")
+        .select("id, lesson_title, unit_title, subject_id, content_json")
+        .or(orConditions)
+        .limit(5)
+        .abortSignal(signal);
+
+      if (allSubjectsError) {
+        console.error("searchLessons error (all-subjects):", allSubjectsError);
+        return [];
+      }
+      data = allSubjectsData;
     }
 
     // نبحث برضو داخل content_json بنفس الكلمات المفتاحية
+    // (بنفس منطق التوسيع: مادة الطالب أولاً، ثم كل المواد)
     let extra: any[] = [];
     if (!data || data.length < 3) {
-      const { data: all } = await supabase
+      let candidatesQuery = supabase
         .from("lessons")
         .select("id, lesson_title, unit_title, subject_id, content_json")
         .limit(50)
         .abortSignal(signal);
-      if (all) {
-        extra = all
+
+      if (subjectId) {
+        candidatesQuery = candidatesQuery.eq("subject_id", subjectId);
+      }
+
+      const { data: candidates } = await candidatesQuery;
+
+      if (candidates) {
+        extra = candidates
           .filter((l: any) => {
             const j = JSON.stringify(l.content_json || "").toLowerCase();
             return keywords.some((k) => j.includes(k.toLowerCase()));
           })
           .slice(0, 3);
+
+        // لو لسه مفيش نتيجة كفاية وكنا مقيدين بمادة، نوسّع بحث content_json لكل المواد
+        if (extra.length === 0 && subjectId) {
+          const { data: allCandidates } = await supabase
+            .from("lessons")
+            .select("id, lesson_title, unit_title, subject_id, content_json")
+            .limit(50)
+            .abortSignal(signal);
+
+          if (allCandidates) {
+            extra = allCandidates
+              .filter((l: any) => {
+                const j = JSON.stringify(l.content_json || "").toLowerCase();
+                return keywords.some((k) => j.includes(k.toLowerCase()));
+              })
+              .slice(0, 3);
+          }
+        }
       }
     }
 
@@ -115,9 +167,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "الرسالة طويلة جداً؛ يرجى اختصارها" }, { status: 400 });
   }
   const history = normalizeHistory(body.history);
+  const subject = typeof body.subject === "string" && body.subject.trim() ? body.subject.trim() : undefined;
 
   try {
-    const lessons = await searchLessons(message);
+    const lessons = await searchLessons(message, subject);
     const context = buildContext(lessons, message);
     const result = await generateChatAnswer(message, context, history);
     let answer = result?.answer;
