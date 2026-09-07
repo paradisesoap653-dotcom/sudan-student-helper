@@ -20,7 +20,7 @@ async function searchLessons(query: string) {
     // نبحث في العناوين والمحتوى النصي
     const { data, error } = await supabase
       .from("lessons")
-      .select("id, lesson_title, unit_title, subject_id, content, content_json")
+      .select("id, lesson_title, unit_title, subject_id, content_json")
       .or(`lesson_title.ilike.%${clean}%,unit_title.ilike.%${clean}%`)
       .limit(5)
       .abortSignal(signal);
