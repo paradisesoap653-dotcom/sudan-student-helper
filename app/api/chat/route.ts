@@ -15,13 +15,26 @@ async function searchLessons(query: string) {
   const clean = query.trim().slice(0, 80);
   if (!clean) return [];
 
+  // نقسم السؤال لكلمات، ونشيل كلمات الوصل القصيرة جداً غير المفيدة في البحث
+  const stopWords = new Set(["من", "في", "على", "الى", "إلى", "عن", "مع", "او", "أو", "ما", "هو", "هي", "كيف", "ماهو", "ماهي", "اشرح", "لي", "درس"]);
+  const keywords = clean
+    .split(/\s+/)
+    .map((w) => w.replace(/[؟!.,]/g, ""))
+    .filter((w) => w.length >= 2 && !stopWords.has(w));
+
+  if (keywords.length === 0) return [];
+
   const signal = AbortSignal.timeout(5_000);
   try {
-    // نبحث في العناوين والمحتوى النصي
+    // نبني شرط OR لكل كلمة مفتاحية على عنوان الدرس والوحدة
+    const orConditions = keywords
+      .map((k) => `lesson_title.ilike.%${k}%,unit_title.ilike.%${k}%`)
+      .join(",");
+
     const { data, error } = await supabase
       .from("lessons")
       .select("id, lesson_title, unit_title, subject_id, content_json")
-      .or(`lesson_title.ilike.%${clean}%,unit_title.ilike.%${clean}%`)
+      .or(orConditions)
       .limit(5)
       .abortSignal(signal);
 
@@ -30,20 +43,19 @@ async function searchLessons(query: string) {
       return [];
     }
 
-    // أيضاً نبحث داخل content_json بطريقة بسيطة بعد الجلب
+    // نبحث برضو داخل content_json بنفس الكلمات المفتاحية
     let extra: any[] = [];
     if (!data || data.length < 3) {
       const { data: all } = await supabase
         .from("lessons")
         .select("id, lesson_title, unit_title, subject_id, content_json")
-        .limit(30)
+        .limit(50)
         .abortSignal(signal);
       if (all) {
-        const q = clean.toLowerCase();
         extra = all
           .filter((l: any) => {
             const j = JSON.stringify(l.content_json || "").toLowerCase();
-            return j.includes(q);
+            return keywords.some((k) => j.includes(k.toLowerCase()));
           })
           .slice(0, 3);
       }
