@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import GabsterEmbedded from "@/components/GabsterEmbedded";
-import LocalChatFallback from "@/components/LocalChatFallback";
 import SmartChat from "@/components/SmartChat";
 import Link from "next/link";
 
@@ -80,18 +78,6 @@ export default function ChatPage({
             <span
               style={{
                 fontSize: "11px",
-                backgroundColor: "#0f172a",
-                border: "1px solid #334155",
-                color: "#cbd5e1",
-                padding: "5px 10px",
-                borderRadius: "999px",
-              }}
-            >
-              🤖 Gabster
-            </span>
-            <span
-              style={{
-                fontSize: "11px",
                 backgroundColor: "#14532d",
                 border: "1px solid #22c55e",
                 color: "#bbf7d0",
@@ -104,7 +90,7 @@ export default function ChatPage({
           </div>
         </div>
 
-        {/* المساعد الذكي الجديد - يجيب من كتبك ودروسك */}
+        {/* المساعد الذكي - يجيب من كتبك ودروسك */}
         <div style={{ marginBottom: "16px" }}>
           <div
             style={{
@@ -117,63 +103,9 @@ export default function ChatPage({
               fontWeight: "bold",
             }}
           >
-            <span>⭐</span> المساعد الذكي — يجيب من كتبك ودروسك (الأفضل)
+            <span>⭐</span> المساعد الذكي — يجيب من كتبك ودروسك
           </div>
           <SmartChat subjectId={subjectId} />
-        </div>
-
-        {/* لوحة Gabster المضمنة */}
-        <div style={{ marginBottom: "6px" }}>
-          <div
-            style={{
-              fontSize: "13px",
-              color: "#94a3b8",
-              marginBottom: "8px",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-            }}
-          >
-            <span>🟦</span> لوحة Gabster المضمّنة (اختيارية)
-          </div>
-          <GabsterEmbedded />
-        </div>
-
-        {/* دردشة بديلة محلية - قديمة */}
-        <div style={{ marginTop: "18px" }}>
-          <div
-            style={{
-              fontSize: "13px",
-              color: "#94a3b8",
-              marginBottom: "8px",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-            }}
-          >
-            <span>🟩</span> دردشة بديلة بسيطة (للمقارنة)
-          </div>
-          <LocalChatFallback />
-        </div>
-
-        {/* ملاحظة */}
-        <div
-          style={{
-            marginTop: "16px",
-            padding: "12px",
-            backgroundColor: "#1e293b",
-            border: "1px solid #334155",
-            borderRadius: "10px",
-            fontSize: "12px",
-            color: "#94a3b8",
-            lineHeight: 1.7,
-          }}
-        >
-          <strong style={{ color: "#fbbf24" }}>💡 ملاحظة:</strong> لوحة Gabster تحتاج أن يكون
-          الدومين مسموح في إعدادات Gabster. إذا لم تظهر، تأكد من إضافة دومين Vercel الخاص بك
-          (مثلاً <code style={{ color: "#38bdf8" }}>*.vercel.app</code>) في لوحة تحكم Gabster.
-          <br />
-          الدردشة البديلة تعمل دائماً بدون إعداد إضافي.
         </div>
 
         {/* طريقة التضمين كتبويب رابع */}
