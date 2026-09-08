@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAIStatus } from "@/lib/ai-config";
-import { generateChatAnswer, MAX_MESSAGE_LENGTH, normalizeHistory } from "@/lib/chat-providers";
+import { generateChatAnswer, MAX_MESSAGE_LENGTH, normalizeHistory, type ChatMessage } from "@/lib/chat-providers";
 
 export const runtime = "nodejs";
 // Three bounded provider attempts (15s each) plus lesson retrieval (5s).
@@ -11,28 +11,39 @@ const supabaseUrl = "https://lhxebcykgdyxehcyohzk.supabase.co";
 const supabaseKey = "sb_publishable_hMGP3EMJNixAVn5liDeh1Q_K10Eiyeu";
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-async function searchLessons(query: string, subjectId?: string) {
-  const clean = query.trim().slice(0, 80);
-  if (!clean) return [];
+const stopWords = new Set(["من", "في", "على", "الى", "إلى", "عن", "مع", "او", "أو", "ما", "هو", "هي", "كيف", "ماهو", "ماهي", "اشرح", "لي", "درس"]);
 
-  // نقسم السؤال لكلمات، ونشيل كلمات الوصل القصيرة جداً غير المفيدة في البحث
-  const stopWords = new Set(["من", "في", "على", "الى", "إلى", "عن", "مع", "او", "أو", "ما", "هو", "هي", "كيف", "ماهو", "ماهي", "اشرح", "لي", "درس"]);
-  const keywords = clean
+function extractKeywords(text: string): string[] {
+  const clean = text.trim().slice(0, 80);
+  return clean
     .split(/\s+/)
     .map((w) => w.replace(/[؟!.,]/g, ""))
     .filter((w) => w.length >= 2 && !stopWords.has(w));
+}
 
-  if (keywords.length === 0) return [];
+// لو سؤال الطالب الحالي عام جداً (زي "تقدر تعمل رسومات توضيحية؟")، نرجع لآخر سؤال
+// حقيقي له في المحادثة عشان نفهم السياق (مثلاً: كان بيتكلم عن الزهرة).
+function getFallbackKeywordsFromHistory(history: ChatMessage[]): string[] {
+  const lastUserMessages = history.filter((m) => m.role === "user").reverse();
+  for (const msg of lastUserMessages) {
+    const kws = extractKeywords(msg.text);
+    if (kws.length > 0) return kws;
+  }
+  return [];
+}
+
+async function searchLessons(query: string, subjectId?: string, history: ChatMessage[] = []) {
+  let keywords = extractKeywords(query);
 
   const signal = AbortSignal.timeout(5_000);
-  try {
-    const orConditions = keywords
+
+  async function runSearch(kws: string[]) {
+    if (kws.length === 0) return { data: [] as any[], extra: [] as any[] };
+
+    const orConditions = kws
       .map((k) => `lesson_title.ilike.%${k}%,unit_title.ilike.%${k}%`)
       .join(",");
 
-    // ============================================
-    // المرحلة 1: بحث مقيّد بالمادة الحالية (لو موجودة)
-    // ============================================
     let data: any[] | null = null;
 
     if (subjectId) {
@@ -51,9 +62,6 @@ async function searchLessons(query: string, subjectId?: string) {
       }
     }
 
-    // ============================================
-    // المرحلة 2: لو مفيش نتائج كافية جوّه المادة، نوسّع البحث لكل المواد
-    // ============================================
     if (!data || data.length === 0) {
       const { data: allSubjectsData, error: allSubjectsError } = await supabase
         .from("lessons")
@@ -64,13 +72,11 @@ async function searchLessons(query: string, subjectId?: string) {
 
       if (allSubjectsError) {
         console.error("searchLessons error (all-subjects):", allSubjectsError);
-        return [];
+        return { data: [], extra: [] };
       }
       data = allSubjectsData;
     }
 
-    // نبحث برضو داخل content_json بنفس الكلمات المفتاحية
-    // (بنفس منطق التوسيع: مادة الطالب أولاً، ثم كل المواد)
     let extra: any[] = [];
     if (!data || data.length < 3) {
       let candidatesQuery = supabase
@@ -89,11 +95,10 @@ async function searchLessons(query: string, subjectId?: string) {
         extra = candidates
           .filter((l: any) => {
             const j = JSON.stringify(l.content_json || "").toLowerCase();
-            return keywords.some((k) => j.includes(k.toLowerCase()));
+            return kws.some((k) => j.includes(k.toLowerCase()));
           })
           .slice(0, 3);
 
-        // لو لسه مفيش نتيجة كفاية وكنا مقيدين بمادة، نوسّع بحث content_json لكل المواد
         if (extra.length === 0 && subjectId) {
           const { data: allCandidates } = await supabase
             .from("lessons")
@@ -105,7 +110,7 @@ async function searchLessons(query: string, subjectId?: string) {
             extra = allCandidates
               .filter((l: any) => {
                 const j = JSON.stringify(l.content_json || "").toLowerCase();
-                return keywords.some((k) => j.includes(k.toLowerCase()));
+                return kws.some((k) => j.includes(k.toLowerCase()));
               })
               .slice(0, 3);
           }
@@ -113,8 +118,23 @@ async function searchLessons(query: string, subjectId?: string) {
       }
     }
 
-    const merged = [...(data || []), ...extra];
-    // إزالة التكرار
+    return { data: data || [], extra };
+  }
+
+  try {
+    let { data, extra } = await runSearch(keywords);
+    let merged = [...data, ...extra];
+
+    // لو السؤال الحالي ما رجّعش نتائج كافية، نستخدم كلمات من آخر سؤال حقيقي
+    // في المحادثة عشان نحافظ على سياق نفس الدرس/الموضوع.
+    if (merged.length < 2) {
+      const fallbackKeywords = getFallbackKeywordsFromHistory(history);
+      if (fallbackKeywords.length > 0) {
+        const fallbackResult = await runSearch(fallbackKeywords);
+        merged = [...merged, ...fallbackResult.data, ...fallbackResult.extra];
+      }
+    }
+
     const seen = new Set();
     return merged.filter((r: any) => {
       if (seen.has(r.id)) return false;
@@ -170,7 +190,7 @@ export async function POST(req: NextRequest) {
   const subject = typeof body.subject === "string" && body.subject.trim() ? body.subject.trim() : undefined;
 
   try {
-    const lessons = await searchLessons(message, subject);
+    const lessons = await searchLessons(message, subject, history);
     const context = buildContext(lessons, message);
     const result = await generateChatAnswer(message, context, history);
     let answer = result?.answer;
