@@ -1,0 +1,2830 @@
+diff --git a/.env.example b/.env.example
+new file mode 100644
+index 0000000..74a3598
+--- /dev/null
++++ b/.env.example
+@@ -0,0 +1,23 @@
++# ====== المتغيرات الخاصة بمشروع ركشتك ======
++# انسخ هذا الملف إلى .env.local وأدخل القيم الحقيقية — لا ترفع .env.local إلى Git أبداً.
++
++# ── بوابة الإدارة (أضِفه في Vercel أيضاً ثم أعد النشر) ──
++# أي سلسلة طويلة عشوائية — توليد: openssl rand -hex 24
++# بدونه تبقى /admin و /dashboard وكل مسارات /api الإدارية مقفولة (403) — وضع آمن متعمّد.
++RAKSHTAK_ADMIN_TOKEN=
++
++# ── قاعدة بيانات Neon (طبقة المسارات القديمة — ستُستبدل بـ Supabase في المرحلة 2) ──
++DATABASE_URL=
++
++# ── Supabase (التطبيق الحي: طلب المشوار + لوحة السائق + لوحة الأدمن) ──
++NEXT_PUBLIC_SUPABASE_URL=
++NEXT_PUBLIC_SUPABASE_ANON_KEY=
++
++# ── Pusher (إشعارات فورية للمسارات القديمة) ──
++PUSHER_APP_ID=
++PUSHER_KEY=
++PUSHER_SECRET=
++PUSHER_CLUSTER=
++
++# ── (احتياطي للمرحلة 2) نقطة إرسال رمز OTP — حتى تُضبط، /api/auth/login موقوف بـ 503 ──
++# RAKSHTAK_OTP_WEBHOOK_URL=
+diff --git a/.gitignore b/.gitignore
+index c2658d7..bfbe4f1 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1 +1,44 @@
++# ── الاعتماديات ──
+ node_modules/
++
++# ── Next.js ──
++.next/
++out/
++build/
++next-env.d.ts.bak
++
++# ── المتغيرات والأسرار (مع استثناء المثال) ──
++.env
++.env.local
++.env.*.local
++.env.production
++.env.development
++!.env.example
++
++# ── السجلات ──
++logs/
++*.log
++npm-debug.log*
++yarn-debug.log*
++yarn-error.log*
++pnpm-debug.log*
++
++# ── أدوات وملفات مؤقتة ──
++.DS_Store
++*.pem
++.vscode/*
++!.vscode/extensions.json
++.idea/
++*.suo
++*.ntvs*
++*.njsproj
++*.sln
++*.sw?
++
++# ── تغطية الاختبارات ──
++coverage/
++*.lcov
++
++# ── أنواع وملفات وسيطة ──
++*.tsbuildinfo
++drizzle/
+diff --git a/HOTFIX-NOTES.md b/HOTFIX-NOTES.md
+new file mode 100644
+index 0000000..d181373
+--- /dev/null
++++ b/HOTFIX-NOTES.md
+@@ -0,0 +1,78 @@
++# HOTFIX-NOTES — إصلاح أمني شامل (فرع `hotfix-security`)
++
++> المرجع الكامل لكل تغيير في الإصلاح وسببه وكيفية اختباره.
++> الإصلاح مبني على `main` (`1d7cfd5`) — ولا يحتاج أي شيء سوى ضبط المتغير `RAKSHTAK_ADMIN_TOKEN`.
++
++## 0) لمحة عامة
++
++التطبيق كان يعمل بنظامين متوازيين:
++1. **النظام الحي (Supabase مباشرة من المتصفح):** `/` و`/driver` و`/admin` — بجدول `rides` (أعمدته `passenger_name/phone_number/offered_price/service_type/status`).
++2. **النظام القديم (مسارات `/api` على Neon/Drizzle):** `/api/rides`, `/api/rides/[id]`, `/api/admin/stats`, `/admin/stats`, `/api/auth/login`, `/api/user/update` وصفحات `/request`, `/searching`, `/dashboard`, `/login`, `/track/[id]` — بجداول `rides` (أعمدتها `serviceType/pickupLocation/customerPhone/status`) و`users` و`ratings`.
++
++**الأصل:** أي شخص كان يستطيع — بدون أي تسجيل دخول — سحب كل الرحلات مع `customerPhone` و`bankAccount`، وتعديلها، وقراءة إحصائيات الأدمن، والدخول بأي حساب برمز `1234` المعروف.
++
++## 1) قفل مسارات `/api` + منع تسريب الحقول
++
++- `src/lib/admin.ts` (جديد): `requireAdminToken(request)` بمقارنة ثابتة الزمن.
++- القفل على: `GET/POST /api/rides`, `PATCH /api/rides/[id]`, `GET /api/admin/stats`, `GET /admin/stats`, `PATCH /api/user/update` — الترويسة `x-admin-token` (أو Bearer). بدون ضبط `RAKSHTAK_ADMIN_TOKEN` أصلاً → **403 دائماً** (الوضع الآمن المتعمّد).
++- **منع إرجاع الحقول الحساسة**: أُلغي join `users` في `GET /api/rides` (كان يسحب `bankAccount`)، وأُزيل `customerPhone`/`customerName` من كل اختيارات الأعمدة.
++- `src/db/index.ts`: اتصال **كسول** — البوابة ترد أولاً (403/503) ولا تُلمس قاعدة البيانات إلا بعد التصريح (كانت تُنشأ عند الاستيراد فتكسر المسار إن نقص `DATABASE_URL`).
++
++## 2) إصلاح `PATCH /api/rides/[id]`
++
++- **لا مسح للحقول غير المرسلة**: بناء كائن `updates` من الحقول الموجودة فقط (`!== undefined`)؛ الحقل الغائب يبقى كما هو، و`null` الصريح = مسح مقصود.
++- **قائمة حالات مسموحة**: `searching/accepted/arrived/completed/cancelled` — غيرها 400.
++- **تقييمات بلا تكرار**: تُسجَّل مرة واحدة لكل جهة عند الانتقال إلى `completed` فقط، مع فحص وجود سابق (UPDATE بدل INSERT) وإعادة حساب المتوسط؛ و`toUserId` لا يقبل إلا رقماً صحيحاً موجباً.
++- إشعار Pusher فقط عند تغيّر الحالة فعلياً.
++
++## 3) إلغاء الرمز الثابت `1234` في `/api/auth/login`
++
++- لا `1234` في الخادم ولا في صفحة `/login`. الخدمة موقوفة **503** برسالة واضحة حتى تُفعَّل خدمة OTP حقيقية (المرحلة 2). التعطيل المتعمّد خير من باب مفتوح برمز معروف.
++
++## 4) بوابة إدارية لصفحتَي `/admin` و`/dashboard` + حذف `firebase-messaging-sw.js`
++
++- `src/components/AdminGate.tsx` (جديد): شاشة قفل تطلب الرمز وتخزّنه في `sessionStorage` مع `get/clear`.
++- `/admin` و`/dashboard` داخل البوابة؛ و`/dashboard` أُصلح (كان يستورد باكتج غير موجود `@supabase/supabase-rb` وكان سيكسر البناء، ويقرأ شكلاً خاطئاً من البيانات).
++- **حذف**: `public/firebase-messaging-sw.js` (كان مرفوعاً بمفاتيح Firebase كاملة مكشوفة ولا يُستدعى من أي مكان) و`src/app/admin/page/tsx` (ملف بلا امتداد ميت).
++
++## 5) لوحة السائق — `src/app/driver/page.tsx`
++
++- **قفل القبول المزدوج**: قبول شرطي `.eq("status","pending")` + قفل `acceptingRef` ضد الضغط المتكرر + منع القبول أثناء مشوار حالي. الإنهاء شرطي أيضاً (`.eq("status","accepted")`).
++- **«مشواري أنا» فقط**: الرحلة الحالية تُعرض فقط إذا كان `driver_phone` = رقمي (كانت تظهر رحلات سائقين آخرين!).
++- **اشتراك realtime واحد** لكل تسجيل دخول (كان `useEffect` يعتمد على `currentRide` فيعاد الاشتراك كل تحديث) — المقارنات عبر refs.
++- **تنبيه WebAudio داخلي** بدون ملف خارجي، يُشغَّل عند زيادة فعلية في الطلبات.
++- **قناع الحساب البنكي** (`••••••7890`) مع إظهار/إخفاء.
++- توحيد رقم الهاتف بصيغة `+2499XXXXXXXX`.
++
++## 6) صفحة الراكب — `src/app/page.tsx`
++
++- تنظيف المدخلات (trim + maxLength) وتحقق أدق من الهاتف (أصلح تكرار `+249` عند الإدخال).
++- **مهلة بحث** 120 ثانية بعدّاد + زرار «🔥 زوّد السعر ٢٠٪» (تحديث فعلي في Supabase + إعادة تشغيل العداد).
++- **تنسيق السعر** بفواصل الآلاف، ومسح ذكي لـ`active_ride_id` (الملغاة والمكتملة لا تعود بعد التحديث).
++
++## 7) `service-worker.js` — لا تخزين لصفحات HTML
++
++v3: التنقّل (HTML) من الشبكة فقط بلا كاش ولا fallback؛ `/api/*` معفاة؛ الخارجي لا يُخزَّن؛ الأصول الثابتة فقط stale-while-revalidate.
++
++## 8) نظافة Git والبناء
++
++- script `typecheck` جديد، و`next.config.mjs` لم يعد يتجاهل أخطاء الأنواع، و`.gitignore` كامل (`.next/` وغيرها)، و`.env.example` يوثق المتغيرات.
++
++## 9) الاختبار المحلي
++
++```bash
++npm install && npm run typecheck   # 0 أخطاء
++npm run build                       # ينجح
++curl -i localhost:3000/api/rides | head -1                      # 403
++curl -i localhost:3000/api/admin/stats | head -1                # 403
++curl -i -X PATCH localhost:3000/api/user/update -d '{}' | head -1    # 403
++curl -i -X POST localhost:3000/api/auth/login -H 'Content-Type: application/json' -d '{"phone":"0912345678"}' | head -1   # 503
++```
++
++## 10) خطوة Vercel
++
++أضف `RAKSHTAK_ADMIN_TOKEN` (Production + Preview) ثم **Redeploy** — بدونه تبقى كلها مقفولة (الوضع الآمن المتعمّد). اختبر: `/api/rides` → 403، و`/` و`/driver` يعملان.
++
++## 11) خارج هذا الإصلاح (المرحلة 2)
++
++Supabase الموحّد، OTP حقيقي وجداول `drivers`، فلتر الأقرب `pickup_lat/lng`، توحيد `service_type`، و`driver_id` integer FK — مفصّل في `PHASE2-NOTES.md`.
+diff --git a/README.md b/README.md
+index f525edf..9eff268 100644
+--- a/README.md
++++ b/README.md
+@@ -1,2 +1,36 @@
+-# Rakshtak
+-تطبيق للنقل والترحال والشحن 
++# Rakshtak — ركشتك
++
++تطبيق للنقل والترحال والشحن 🛺
++
++## التشغيل محلياً
++
++```bash
++npm install
++cp .env.example .env.local   # ثم املأ القيم
++npm run typecheck            # يجب أن يكون 0 أخطاء
++npm run build
++npm run dev
++```
++
++## المتغيرات المطلوبة
++
++| المتغير | الوصف |
++| --- | --- |
++| `RAKSHTAK_ADMIN_TOKEN` | **بوابة الإدارة** — بدون قيمته تبقى `/admin` و`/dashboard` وكل مسارات `/api` الإدارية مقفولة (403). ولّده بـ `openssl rand -hex 24` |
++| `DATABASE_URL` | قاعدة بيانات Neon (طبقة المسارات القديمة — تُستبدل بـ Supabase في المرحلة 2) |
++| `NEXT_PUBLIC_SUPABASE_URL` | Supabase (التطبيق الحي) |
++| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase (التطبيق الحي) |
++| `PUSHER_*` | إشعارات المسارات القديمة |
++
++## الأمان (ملخص)
++
++- مسارات `/api` كلها خلف `RAKSHTAK_ADMIN_TOKEN` عبر `x-admin-token`؛ بدونها 403.
++- `/api/auth/login` لا يقبل رمزاً ثابتاً (أُلغي `1234`) وهو موقوف 503 حتى OTP حقيقي.
++- الاستجابات لا تعيد `customerPhone`/`bankAccount`.
++- `PATCH /api/rides/[id]`: تحديث جزئي + حالات مسموحة + تقييم بلا تكرار.
++- `/admin` و`/dashboard` خلف بوابة؛ و`firebase-messaging-sw.js` حُذف.
++- لوحة السائق: قبول شرطي + «مشواري أنا» + اشتراك واحد + WebAudio داخلي + قناع الحساب.
++- صفحة الراكب: هاتف أدق + مهلة بحث + زوّد السعر ٢٠٪ + تنسيق السعر.
++- `service-worker.js` لا يخزّن HTML.
++
++التفاصيل الكاملة: [`HOTFIX-NOTES.md`](./HOTFIX-NOTES.md).
+diff --git a/next.config.mjs b/next.config.mjs
+index cf2c18d..8da4048 100644
+--- a/next.config.mjs
++++ b/next.config.mjs
+@@ -1,11 +1,9 @@
+ /** @type {import('next').NextConfig} */
+ const nextConfig = {
+-  typescript: {
+-    // يتجاهل أخطاء TypeScript أثناء الـ Build في Vercel
+-    ignoreBuildErrors: true,
+-  },
++  // البناء يشغّل فحص TypeScript نفسه — أي خطأ أنواع يكسر الـ Build
++  // (تُشغَّل سابقاً يدوياً عبر: npm run typecheck)
+   eslint: {
+-    // يتجاهل أخطاء التنسيق و ESLint أثناء الـ Build
++    // لا يوجد إعداد ESLint في المشروع — يتجاهله أثناء الـ Build
+     ignoreDuringBuilds: true,
+   },
+ };
+diff --git a/package-lock.json b/package-lock.json
+index ae52d82..42571d4 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -21,6 +21,7 @@
+         "react-dom": "^18"
+       },
+       "devDependencies": {
++        "@types/leaflet": "^1.9.22",
+         "@types/node": "^20",
+         "@types/react": "^18",
+         "@types/react-dom": "^18",
+@@ -351,6 +352,23 @@
+         "tslib": "^2.4.0"
+       }
+     },
++    "node_modules/@types/geojson": {
++      "version": "7946.0.16",
++      "resolved": "https://registry.npmjs.org/@types/geojson/-/geojson-7946.0.16.tgz",
++      "integrity": "sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==",
++      "dev": true,
++      "license": "MIT"
++    },
++    "node_modules/@types/leaflet": {
++      "version": "1.9.22",
++      "resolved": "https://registry.npmjs.org/@types/leaflet/-/leaflet-1.9.22.tgz",
++      "integrity": "sha512-h3lhECYEKDasG7LFHu+GiHqAvsgLuQvlJvVZzJDGONo3sEL+wUOqSFLnwkZlK0qVxnxbuGFW8iBlJNYs5wgndA==",
++      "dev": true,
++      "license": "MIT",
++      "dependencies": {
++        "@types/geojson": "*"
++      }
++    },
+     "node_modules/@types/node": {
+       "version": "20.19.43",
+       "resolved": "https://registry.npmjs.org/@types/node/-/node-20.19.43.tgz",
+@@ -2535,6 +2553,21 @@
+         "tslib": "^2.4.0"
+       }
+     },
++    "@types/geojson": {
++      "version": "7946.0.16",
++      "resolved": "https://registry.npmjs.org/@types/geojson/-/geojson-7946.0.16.tgz",
++      "integrity": "sha512-6C8nqWur3j98U6+lXDfTUWIfgvZU+EumvpHKcYjujKH7woYyLj2sUmff0tRhrqM7BohUw7Pz3ZB1jj2gW9Fvmg==",
++      "dev": true
++    },
++    "@types/leaflet": {
++      "version": "1.9.22",
++      "resolved": "https://registry.npmjs.org/@types/leaflet/-/leaflet-1.9.22.tgz",
++      "integrity": "sha512-h3lhECYEKDasG7LFHu+GiHqAvsgLuQvlJvVZzJDGONo3sEL+wUOqSFLnwkZlK0qVxnxbuGFW8iBlJNYs5wgndA==",
++      "dev": true,
++      "requires": {
++        "@types/geojson": "*"
++      }
++    },
+     "@types/node": {
+       "version": "20.19.43",
+       "resolved": "https://registry.npmjs.org/@types/node/-/node-20.19.43.tgz",
+diff --git a/package.json b/package.json
+index b8d8cde..b1fc2e6 100644
+--- a/package.json
++++ b/package.json
+@@ -6,7 +6,8 @@
+     "dev": "next dev",
+     "build": "next build",
+     "start": "next start",
+-    "lint": "next lint"
++    "lint": "next lint",
++    "typecheck": "tsc --noEmit"
+   },
+   "dependencies": {
+     "@neondatabase/serverless": "^0.10.4",
+diff --git a/public/firebase-messaging-sw.js b/public/firebase-messaging-sw.js
+deleted file mode 100644
+index 5a047e5..0000000
+--- a/public/firebase-messaging-sw.js
++++ /dev/null
+@@ -1,26 +0,0 @@
+-importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
+-importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
+-
+-const firebaseConfig = {
+-  apiKey: "AIzaSyA3JahikJAKwhmcQ8_Nu9ZZvkZN1t891fs",
+-  authDomain: "rakshtak-b08e7.firebaseapp.com",
+-  projectId: "rakshtak-b08e7",
+-  storageBucket: "rakshtak-b08e7.firebasestorage.app",
+-  messagingSenderId: "553278409750",
+-  appId: "1:553278409750:web:3be527656ab7a2636e7937"
+-};
+-
+-firebase.initializeApp(firebaseConfig);
+-const messaging = firebase.messaging();
+-
+-messaging.onBackgroundMessage((payload) => {
+-  const notificationTitle = payload.notification?.title || 'طلب مشوار جديد 🛺';
+-  const notificationOptions = {
+-    body: payload.notification?.body || 'هناك زبون يطلب مشواراً الآن، افتح التطبيق للقبول!',
+-    icon: '/icon.png',
+-    badge: '/icon.png',
+-    vibrate: [200, 100, 200]
+-  };
+-
+-  self.registration.showNotification(notificationTitle, notificationOptions);
+-});
+diff --git a/public/service-worker.js b/public/service-worker.js
+index a0e0460..6cc2009 100644
+--- a/public/service-worker.js
++++ b/public/service-worker.js
+@@ -1,41 +1,78 @@
+-const CACHE_NAME = 'rakshatak-pwa-v2'; // تم تحديث الإصدار لتفريغ الكاش القديم
++/**
++ * Service Worker — ركشتك v3
++ *
++ * قواعد التخزين المؤقت الصارمة:
++ * 1. ❌ صفحات HTML (أي طلب navigate/document) تُجلب من الشبكة دائماً —
++ *    لا تُخزَّن ولا تُقدَّم من الكاش إطلاقاً (حتى لا يرى المستخدم نسخة قديمة
++ *    من التطبيق، ولا يُعرض محتوى HTML لصفحات مقفولة مثل /admin).
++ * 2. ❌ مسارات /api/ معفاة تماماً من أي تدخّل (بيانات حية وحساسة).
++ * 3. ❌ الطلبات الخارجية (CDN/خرائط) لا تُخزَّن.
++ * 4. ✅ الأصول الثابتة فقط (أيقونة + manifest + ملفات script/style/image/font
++ *    من نفس النطاق) تُخزَّن بأسلوب stale-while-revalidate.
++ */
++const CACHE_NAME = "rakshtak-pwa-v3";
+ 
+-const ASSETS_TO_CACHE = [
+-  '/',
+-  '/manifest.json',
+-  '/icon.png'
++const STATIC_ASSETS = [
++  "/manifest.json",
++  "/icon.png",
+ ];
+ 
+-self.addEventListener('install', (event) => {
++self.addEventListener("install", (event) => {
+   self.skipWaiting();
+   event.waitUntil(
+-    caches.open(CACHE_NAME).then((cache) => {
+-      return cache.addAll(ASSETS_TO_CACHE);
+-    })
++    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
+   );
+ });
+ 
+-self.addEventListener('activate', (event) => {
++self.addEventListener("activate", (event) => {
+   event.waitUntil(
+-    caches.keys().then((cacheNames) => {
+-      return Promise.all(
+-        cacheNames.map((cache) => {
+-          if (cache !== CACHE_NAME) {
+-            return caches.delete(cache);
+-          }
+-        })
+-      );
+-    }).then(() => self.clients.claim())
++    caches
++      .keys()
++      .then((cacheNames) =>
++        Promise.all(
++          cacheNames.map((name) => {
++            if (name !== CACHE_NAME) return caches.delete(name);
++          })
++        )
++      )
++      .then(() => self.clients.claim())
+   );
+ });
+ 
+-self.addEventListener('fetch', (event) => {
+-  if (event.request.url.includes('/api/')) {
++const CACHEABLE_DESTINATIONS = new Set([
++  "script",
++  "style",
++  "font",
++  "image",
++  "manifest",
++]);
++
++self.addEventListener("fetch", (event) => {
++  const { request } = event;
++  if (request.method !== "GET") return;
++
++  const url = new URL(request.url);
++  if (url.origin !== self.location.origin) return; // خارجي: بدون تدخّل
++  if (url.pathname.startsWith("/api/")) return; // API: أبداً
++
++  // التنقّل بين الصفحات (HTML): الشبكة فقط — بلا كاش ولا fallback
++  if (request.mode === "navigate" || request.destination === "document") {
+     return;
+   }
++
++  // باقي الأصول من نفس النطاق: من الكاش أولاً مع تحديث من الشبكة في الخلفية
+   event.respondWith(
+-    fetch(event.request).catch(() => {
+-      return caches.match(event.request);
++    caches.match(request).then((cached) => {
++      const networkFetch = fetch(request)
++        .then((response) => {
++          if (response.ok && CACHEABLE_DESTINATIONS.has(request.destination)) {
++            const copy = response.clone();
++            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
++          }
++          return response;
++        })
++        .catch(() => cached);
++      return cached || networkFetch;
+     })
+   );
+ });
+diff --git a/src/app/admin/page.tsx b/src/app/admin/page.tsx
+index 13731d5..a5da46f 100644
+--- a/src/app/admin/page.tsx
++++ b/src/app/admin/page.tsx
+@@ -1,6 +1,7 @@
+ "use client";
+ 
+ import { useState, useEffect } from "react";
++import AdminGate, { clearAdminToken } from "@/components/AdminGate";
+ import { supabase } from "@/lib/supabase";
+ 
+ interface Ride {
+@@ -17,6 +18,14 @@ interface Ride {
+ }
+ 
+ export default function AdminDashboard() {
++  return (
++    <AdminGate title="بوابة لوحة تحكم الأدمن">
++      <AdminContent />
++    </AdminGate>
++  );
++}
++
++function AdminContent() {
+   const [rides, setRides] = useState<Ride[]>([]);
+   const [loading, setLoading] = useState(true);
+ 
+@@ -77,13 +86,23 @@ export default function AdminDashboard() {
+           <span className="font-bold text-base text-white">لوحة تحكم الأدمن</span>
+         </div>
+ 
+-        <button
+-          type="button"
+-          onClick={() => { window.location.href = "/"; }}
+-          className="bg-amber-500/10 text-amber-400 font-bold text-xs px-3 py-1.5 rounded-xl border border-amber-500/30 transition cursor-pointer"
+-        >
+-          الرئيسية 🏠
+-        </button>
++        <div className="flex items-center gap-2">
++          <button
++            type="button"
++            onClick={() => { window.location.href = "/"; }}
++            className="bg-amber-500/10 text-amber-400 font-bold text-xs px-3 py-1.5 rounded-xl border border-amber-500/30 transition cursor-pointer"
++          >
++            الرئيسية 🏠
++          </button>
++          <button
++            type="button"
++            onClick={() => { clearAdminToken(); window.location.reload(); }}
++            className="bg-red-500/10 text-red-400 font-bold text-xs px-3 py-1.5 rounded-xl border border-red-500/30 transition cursor-pointer"
++            title="إنهاء جلسة الإدارة"
++          >
++            🔒 خروج
++          </button>
++        </div>
+       </div>
+ 
+       <div className="w-full max-w-md bg-[#161b22] border border-slate-800 rounded-3xl p-4 shadow-2xl space-y-4">
+diff --git a/src/app/admin/page/tsx b/src/app/admin/page/tsx
+deleted file mode 100644
+index 03b8514..0000000
+--- a/src/app/admin/page/tsx
++++ /dev/null
+@@ -1,43 +0,0 @@
+-"use client";
+-import { useEffect, useState } from "react";
+-
+-export default function AdminPage() {
+-  const [stats, setStats] = useState({ rides: 0, drivers: 0, avgRating: 0 });
+-  const [loading, setLoading] = useState(true);
+-
+-  useEffect(() => {
+-    const fetchStats = async () => {
+-      try {
+-        const res = await fetch("/api/admin/stats");
+-        const data = await res.json();
+-        setStats(data);
+-      } catch (e) { console.error(e); }
+-      setLoading(false);
+-    };
+-    fetchStats();
+-  }, []);
+-
+-  return (
+-    <div className="min-h-screen bg-gray-900 text-white p-8">
+-      <h1 className="text-4xl font-bold mb-8">📊 لوحة تحكم المشرف</h1>
+-      {loading ? (
+-        <p>جاري التحميل...</p>
+-      ) : (
+-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+-          <div className="bg-blue-600 p-6 rounded-2xl shadow-xl">
+-            <p className="text-3xl font-bold">{stats.rides}</p>
+-            <p>🚗 إجمالي الرحلات</p>
+-          </div>
+-          <div className="bg-green-600 p-6 rounded-2xl shadow-xl">
+-            <p className="text-3xl font-bold">{stats.drivers}</p>
+-            <p>👤 عدد السائقين</p>
+-          </div>
+-          <div className="bg-yellow-600 p-6 rounded-2xl shadow-xl">
+-            <p className="text-3xl font-bold">{stats.avgRating} ⭐</p>
+-            <p>متوسط التقييم</p>
+-          </div>
+-        </div>
+-      )}
+-    </div>
+-  );
+-}
+diff --git a/src/app/admin/stats/route.ts b/src/app/admin/stats/route.ts
+index cf2234b..d2952ed 100644
+--- a/src/app/admin/stats/route.ts
++++ b/src/app/admin/stats/route.ts
+@@ -1,9 +1,14 @@
+-import { NextResponse } from "next/server";
++import { NextRequest, NextResponse } from "next/server";
+ import { db } from "@/db";
+ import { rides, users, ratings } from "@/db/schema";
+ import { eq, sql, count } from "drizzle-orm";
++import { requireAdminToken } from "@/lib/admin";
++
++// نسخة /admin/stats (App Router) — نفس الحماية: إداري فقط
++export async function GET(request: NextRequest) {
++  const denied = requireAdminToken(request);
++  if (denied) return denied;
+ 
+-export async function GET() {
+   try {
+     const totalRides = await db.select({ count: count() }).from(rides);
+     const totalDrivers = await db
+@@ -26,7 +31,15 @@ export async function GET() {
+       .from(rides)
+       .where(eq(rides.status, "cancelled"));
+     const recentRides = await db
+-      .select()
++      .select({
++        id: rides.id,
++        serviceType: rides.serviceType,
++        pickupLocation: rides.pickupLocation,
++        destination: rides.destination,
++        status: rides.status,
++        driverId: rides.driverId,
++        createdAt: rides.createdAt,
++      })
+       .from(rides)
+       .orderBy(sql`created_at DESC`)
+       .limit(10);
+diff --git a/src/app/api/admin/stats/route.ts b/src/app/api/admin/stats/route.ts
+index 63f2578..84b3450 100644
+--- a/src/app/api/admin/stats/route.ts
++++ b/src/app/api/admin/stats/route.ts
+@@ -1,45 +1,58 @@
+-import { NextResponse } from "next/server";
++import { NextRequest, NextResponse } from "next/server";
+ import { db } from "@/db";
+ import { rides, users, ratings } from "@/db/schema";
+ import { eq, sql, count } from "drizzle-orm";
++import { requireAdminToken } from "@/lib/admin";
++
++export async function GET(request: NextRequest) {
++  // البوابة الإدارية أولاً — الإحصائيات سرّ إداري
++  const denied = requireAdminToken(request);
++  if (denied) return denied;
+ 
+-export async function GET() {
+   try {
+     // 1. إجمالي الرحلات
+     const totalRides = await db.select({ count: count() }).from(rides);
+-    
++
+     // 2. عدد السائقين (role = "driver")
+     const totalDrivers = await db
+       .select({ count: count() })
+       .from(users)
+       .where(eq(users.role, "driver"));
+-    
++
+     // 3. عدد الركاب (role = "rider")
+     const totalRiders = await db
+       .select({ count: count() })
+       .from(users)
+       .where(eq(users.role, "rider"));
+-    
++
+     // 4. متوسط التقييم الكلي
+     const avgRatingResult = await db
+       .select({ avg: sql<number>`AVG(rating)` })
+       .from(ratings);
+-    
++
+     // 5. الرحلات النشطة (searching)
+     const activeRides = await db
+       .select({ count: count() })
+       .from(rides)
+       .where(eq(rides.status, "searching"));
+-    
++
+     // 6. الرحلات الملغاة (cancelled)
+     const cancelledRides = await db
+       .select({ count: count() })
+       .from(rides)
+       .where(eq(rides.status, "cancelled"));
+ 
+-    // 7. آخر 10 رحلات
++    // 7. آخر 10 رحلات — بأعمدة آمنة فقط (بلا customerPhone/bankAccount)
+     const recentRides = await db
+-      .select()
++      .select({
++        id: rides.id,
++        serviceType: rides.serviceType,
++        pickupLocation: rides.pickupLocation,
++        destination: rides.destination,
++        status: rides.status,
++        driverId: rides.driverId,
++        createdAt: rides.createdAt,
++      })
+       .from(rides)
+       .orderBy(sql`created_at DESC`)
+       .limit(10);
+diff --git a/src/app/api/auth/login/route.ts b/src/app/api/auth/login/route.ts
+index c001793..edcfbf9 100644
+--- a/src/app/api/auth/login/route.ts
++++ b/src/app/api/auth/login/route.ts
+@@ -1,53 +1,52 @@
+ import { NextRequest, NextResponse } from "next/server";
+-import { db } from "@/db";
+-import { users } from "@/db/schema";
+-import { eq } from "drizzle-orm";
++
++/**
++ * ⛔ إلغاء الرمز الثابت "1234":
++ * كان المسار يردّ دائماً "تم إرسال الرمز (في التجربة: 1234)" ويقبل أي رمز 1234،
++ * أي أن أي شخص يعرف رقم هاتف أي مستخدم كان يستطيع الدخول بحسابه.
++ *
++ * الوضع الآن: الخدمة موقوفة (503) ريثما تُفعَّل خدمة OTP حقيقية
++ * (توليد رمز عشوائي + إرسال عبر مزوّد + تخزين مقيّد الزمن — المرحلة 2).
++ * التعطيل المتعمّد خير من بقاء باب مفتوح برمز معروف للجميع.
++ */
++const OTP_DISABLED_MESSAGE =
++  "خدمة رمز التحقق غير متاحة حالياً — أُوقف تسجيل الدخول بالرمز مؤقتاً لحين تفعيل مزوّد OTP حقيقي.";
++
++/** تطبيع بسيط لرقم الهاتف على الخادم (نفس صيغة التطبيق: +2499XXXXXXXX) */
++function normalizePhone(raw: unknown): string | null {
++  if (typeof raw !== "string") return null;
++  let digits = raw.replace(/\D/g, "");
++  if (digits.startsWith("00")) digits = digits.slice(2);
++  if (digits.startsWith("249")) digits = digits.slice(3);
++  if (digits.startsWith("0")) digits = digits.slice(1);
++  return /^9\d{8}$/.test(digits) ? `+249${digits}` : null;
++}
+ 
+ // ===== إرسال رمز التحقق =====
+ export async function POST(request: NextRequest) {
+   try {
+     const { phone } = await request.json();
+-    if (!phone) return NextResponse.json({ error: "رقم الهاتف مطلوب" }, { status: 400 });
+-    return NextResponse.json({ message: "تم إرسال الرمز (في التجربة: 1234)" }, { status: 200 });
+-  } catch (error) {
+-    return NextResponse.json({ error: "فشل الإرسال" }, { status: 500 });
+-  }
+-}
+ 
+-// ===== التحقق من الرمز وإنشاء المستخدم (مع bankAccount) =====
+-export async function PUT(request: NextRequest) {
+-  try {
+-    const { phone, code, name, bankAccount } = await request.json();
+-    if (!phone || !code) {
+-      return NextResponse.json({ error: "رقم الهاتف والرمز مطلوبان" }, { status: 400 });
++    if (!normalizePhone(phone)) {
++      return NextResponse.json(
++        { error: "رقم الهاتف السوداني غير صحيح (9 أرقام تبدأ بـ 9)" },
++        { status: 400 }
++      );
+     }
+ 
+-    // رمز ثابت للتجربة
+-    if (code !== "1234") {
+-      return NextResponse.json({ error: "الرمز غير صحيح" }, { status: 401 });
+-    }
+-
+-    let user = await db.select().from(users).where(eq(users.phone, phone));
+-    
+-    if (user.length === 0) {
+-      const newName = name || `مسافر_${phone.slice(-4)}`;
+-      const [newUser] = await db.insert(users).values({
+-        phone,
+-        name: newName,
+-        role: "rider",
+-        bankAccount: bankAccount || null,
+-      }).returning();
+-      user = [newUser];
+-    }
+-
+-    return NextResponse.json({
+-      userId: user[0].id,
+-      userName: user[0].name,
+-      role: user[0].role,
+-      bankAccount: user[0].bankAccount || "",
+-    }, { status: 200 });
++    // أُوقف الإرسال الوهمي نهائياً — لا يوجد بعد أي رمز "تجريبي" يُقبل
++    return NextResponse.json({ error: OTP_DISABLED_MESSAGE }, { status: 503 });
+   } catch (error) {
+-    console.error(error);
+-    return NextResponse.json({ error: "فشل التحقق" }, { status: 500 });
++    console.error("Auth login error:", error);
++    return NextResponse.json(
++      { error: "فشل طلب رمز التحقق" },
++      { status: 500 }
++    );
+   }
+ }
++
++// ===== التحقق من الرمز =====
++export async function PUT() {
++  // لا يوجد رمز يُخزَّن ولا رمز ثابت يُقارَن به — الخدمة موقوفة بنفس الرسالة
++  return NextResponse.json({ error: OTP_DISABLED_MESSAGE }, { status: 503 });
++}
+diff --git a/src/app/api/rides/[id]/route.ts b/src/app/api/rides/[id]/route.ts
+index 890fa33..eba468f 100644
+--- a/src/app/api/rides/[id]/route.ts
++++ b/src/app/api/rides/[id]/route.ts
+@@ -1,28 +1,51 @@
+ import { NextRequest, NextResponse } from "next/server";
+ import { db } from "@/db";
+ import { rides, users, ratings } from "@/db/schema";
+-import { eq, sql } from "drizzle-orm";
++import { eq, and, sql } from "drizzle-orm";
++import { requireAdminToken } from "@/lib/admin";
+ 
+-// ===== دالة تحديث متوسط التقييم =====
++/** الحالات المسموح نقل الرحلة إليها عبر هذه المسارات (النظام القديم) */
++const ALLOWED_STATUSES = ["searching", "accepted", "arrived", "completed", "cancelled"];
++
++/** قيم التقييم المسموحة (1–5) */
++function normalizeRating(value: unknown): number | null {
++  const n = Number(value);
++  if (value === undefined || value === null) return null;
++  if (!Number.isInteger(n) || n < 1 || n > 5) {
++    throw new Error("التقييم يجب أن يكون رقماً صحيحاً بين 1 و 5");
++  }
++  return n;
++}
++
++function normalizeLatLng(value: unknown, label: string): number | null {
++  if (value === undefined || value === null) return null;
++  const n = Number(value);
++  if (!Number.isFinite(n)) {
++    throw new Error(`${label} يجب أن يكون رقماً صحيحاً`);
++  }
++  return n;
++}
++
++/** دالة تحديث متوسط التقييم (تتعامل بأمان مع القيم الفارغة) */
+ async function updateUserAvgRating(userId: number) {
+   const result = await db
+     .select({ avg: sql<number>`AVG(rating)`, count: sql<number>`COUNT(*)` })
+     .from(ratings)
+     .where(eq(ratings.toUserId, userId));
+-  
++
+   const avg = result[0]?.avg || 0;
+   const count = result[0]?.count || 0;
+-  
++
+   await db
+     .update(users)
+     .set({ avgRating: avg, totalRatings: count })
+     .where(eq(users.id, userId));
+ }
+ 
+-// ===== دالة إرسال إشعار فوري عبر Pusher =====
++/** دالة إرسال إشعار فوري عبر Pusher */
+ const sendPusherEvent = async (rideId: number, status: string) => {
+   try {
+-    const Pusher = (await import('pusher')).default;
++    const Pusher = (await import("pusher")).default;
+     const pusher = new Pusher({
+       appId: process.env.PUSHER_APP_ID!,
+       key: process.env.PUSHER_KEY!,
+@@ -30,22 +53,48 @@ const sendPusherEvent = async (rideId: number, status: string) => {
+       cluster: process.env.PUSHER_CLUSTER!,
+       useTLS: true,
+     });
+-    await pusher.trigger(`ride-${rideId}`, 'status-update', { status });
++    await pusher.trigger(`ride-${rideId}`, "status-update", { status });
+     console.log(`📡 إشعار فوري أُرسل للرحلة ${rideId}: ${status}`);
+   } catch (e) {
+     console.warn("⚠️ Pusher غير مضبوط، لن نستخدم التحديث الفوري.");
+   }
+ };
+ 
+-// ===== GET: جلب رحلة محددة (يستخدمه Polling الاحتياطي) =====
++/** تحويل driverId (نص/رقم) إلى معرّف مستخدم صحيح — يرجع null إن لم يكن صالحاً */
++function toUserId(value: unknown): number | null {
++  if (value === null || value === undefined || value === "") return null;
++  const n = Number(value);
++  return Number.isInteger(n) && n > 0 ? n : null;
++}
++
++// ===== GET: جلب رحلة محددة (لرابط التتبع العام — بدون بيانات حساسة) =====
+ export async function GET(
+   request: NextRequest,
+   { params }: { params: Promise<{ id: string }> }
+ ) {
+   try {
+     const { id } = await params;
+-    const rideId = parseInt(id);
+-    const [ride] = await db.select().from(rides).where(eq(rides.id, rideId));
++    const rideId = parseInt(id, 10);
++    if (!Number.isInteger(rideId)) {
++      return NextResponse.json({ error: "معرّف رحلة غير صالح" }, { status: 400 });
++    }
++
++    // أعمدة آمنة فقط: ❌ بلا customerPhone ولا customerName ولا bankAccount
++    const [ride] = await db
++      .select({
++        id: rides.id,
++        serviceType: rides.serviceType,
++        pickupLocation: rides.pickupLocation,
++        destination: rides.destination,
++        status: rides.status,
++        driverId: rides.driverId,
++        driverLat: rides.driverLat,
++        driverLng: rides.driverLng,
++        createdAt: rides.createdAt,
++      })
++      .from(rides)
++      .where(eq(rides.id, rideId));
++
+     if (!ride) {
+       return NextResponse.json({ error: "الرحلة غير موجودة" }, { status: 404 });
+     }
+@@ -61,64 +110,188 @@ export async function PATCH(
+   request: NextRequest,
+   { params }: { params: Promise<{ id: string }> }
+ ) {
++  // البوابة الإدارية أولاً
++  const denied = requireAdminToken(request);
++  if (denied) return denied;
++
+   try {
+     const { id } = await params;
+-    const rideId = parseInt(id);
++    const rideId = parseInt(id, 10);
++    if (!Number.isInteger(rideId)) {
++      return NextResponse.json({ error: "معرّف رحلة غير صالح" }, { status: 400 });
++    }
++
+     const body = await request.json();
+-    const { status, driverId, driverLat, driverLng, driverRating, riderRating, ratingComment } = body;
++    const {
++      status,
++      driverId,
++      driverLat,
++      driverLng,
++      driverRating,
++      riderRating,
++      ratingComment,
++    } = body;
++
++    // 1) بناء التحديث جزئياً: الحقول المرسلة فقط تُعدَّل،
++    //    وأي حقل غير مرسل يبقى كما هو (لا مسح للحقول غير المرسلة!)
++    const updates: Record<string, unknown> = {};
+ 
+-    if (!status) {
+-      return NextResponse.json({ error: "الحالة مطلوبة" }, { status: 400 });
++    if (status !== undefined) {
++      if (typeof status !== "string" || !ALLOWED_STATUSES.includes(status)) {
++        return NextResponse.json(
++          {
++            error: `الحالة غير مسموحة. الحالات الصالحة: ${ALLOWED_STATUSES.join("، ")}`,
++          },
++          { status: 400 }
++        );
++      }
++      updates.status = status;
+     }
+ 
+-    // 1. تحديث الرحلة في قاعدة البيانات
+-    await db
+-      .update(rides)
+-      .set({
+-        status,
+-        driverId: driverId || null,
+-        driverLat: driverLat || null,
+-        driverLng: driverLng || null,
+-        driverRating: driverRating || null,
+-        riderRating: riderRating || null,
+-        ratingComment: ratingComment || null,
+-      })
+-      .where(eq(rides.id, rideId));
++    if (driverId !== undefined) {
++      // يسمح بإسناد سائق (نص/رقم) أو فك الإسناد بـ null صريح — أما الغياب فيعني "لا تغيير"
++      const cleanDriverId =
++        driverId === null || driverId === "" ? null : String(driverId).slice(0, 20);
++      updates.driverId = cleanDriverId;
++    }
+ 
+-    // 2. إرسال إشعار فوري عبر Pusher (للتحديث الفوري في صفحة الراكب)
+-    await sendPusherEvent(rideId, status);
++    if (driverLat !== undefined) {
++      const lat = normalizeLatLng(driverLat, "خط العرض");
++      updates.driverLat = lat;
++    }
++
++    if (driverLng !== undefined) {
++      const lng = normalizeLatLng(driverLng, "خط الطول");
++      updates.driverLng = lng;
++    }
++
++    if (driverRating !== undefined) {
++      updates.driverRating = normalizeRating(driverRating);
++    }
++
++    if (riderRating !== undefined) {
++      updates.riderRating = normalizeRating(riderRating);
++    }
++
++    if (ratingComment !== undefined) {
++      updates.ratingComment =
++        ratingComment === null ? null : String(ratingComment).slice(0, 500);
++    }
++
++    if (Object.keys(updates).length === 0) {
++      return NextResponse.json(
++        { error: "لا توجد حقول قابلة للتحديث في الطلب" },
++        { status: 400 }
++      );
++    }
++
++    const previousStatus =
++      status !== undefined
++        ? (
++            await db
++              .select({ status: rides.status })
++              .from(rides)
++              .where(eq(rides.id, rideId))
++          )[0]?.status
++        : undefined;
+ 
+-    // 3. إذا كانت الحالة "completed"، نقوم بتسجيل التقييمات
+-    if (status === "completed") {
++    // 2) التحديث الفعلي
++    await db.update(rides).set(updates).where(eq(rides.id, rideId));
++
++    // 3) إشعار Pusher عند تغيّر الحالة فقط
++    if (status !== undefined && previousStatus && previousStatus !== status) {
++      await sendPusherEvent(rideId, status);
++    }
++
++    // 4) تسجيل التقييمات عند الإكمال — مرة واحدة فقط لكل جهة (بلا تكرار)
++    if (status === "completed" && previousStatus !== "completed") {
+       const [ride] = await db.select().from(rides).where(eq(rides.id, rideId));
+-      
+-      // تقييم السائق من الراكب
+-      if (driverRating && ride.userId) {
+-        await db.insert(ratings).values({
+-          rideId: ride.id,
+-          fromUserId: ride.userId,
+-          toUserId: ride.driverId ? parseInt(ride.driverId) : null,
+-          rating: driverRating,
+-          comment: ratingComment || "",
+-        });
+-        if (ride.driverId) await updateUserAvgRating(parseInt(ride.driverId));
++
++      if (!ride) {
++        return NextResponse.json({ error: "الرحلة غير موجودة" }, { status: 404 });
+       }
+-      
+-      // تقييم الراكب من السائق
+-      if (riderRating && ride.driverId) {
+-        await db.insert(ratings).values({
+-          rideId: ride.id,
+-          fromUserId: parseInt(ride.driverId),
+-          toUserId: ride.userId,
+-          rating: riderRating,
+-          comment: "",
+-        });
+-        if (ride.userId) await updateUserAvgRating(ride.userId);
++
++      const driverUserId = toUserId(ride.driverId);
++
++      // تقييم السائق من الراكب (driverRating أُرسل من جهة الراكب)
++      if (driverRating !== undefined && driverRating !== null) {
++        const fromUserId = ride.userId;
++        if (fromUserId && driverUserId) {
++          const existing = await db
++            .select({ id: ratings.id })
++            .from(ratings)
++            .where(
++              and(
++                eq(ratings.rideId, ride.id),
++                eq(ratings.fromUserId, fromUserId),
++                eq(ratings.toUserId, driverUserId)
++              )
++            )
++            .limit(1);
++
++          // driverRating محقَّق أعلاه أنه ليس null/undefined — والقيمة صحيحة 1..5 أو رمى خطأ
++          const rating = normalizeRating(driverRating) as number;
++          if (existing[0]) {
++            await db
++              .update(ratings)
++              .set({ rating, comment: ratingComment || "" })
++              .where(eq(ratings.id, existing[0].id));
++          } else {
++            await db.insert(ratings).values({
++              rideId: ride.id,
++              fromUserId,
++              toUserId: driverUserId,
++              rating,
++              comment: ratingComment || "",
++            });
++          }
++          await updateUserAvgRating(driverUserId);
++        }
++      }
++
++      // تقييم الراكب من السائق (riderRating أُرسل من جهة السائق)
++      if (riderRating !== undefined && riderRating !== null) {
++        const fromDriverId = driverUserId;
++        const toRiderId = ride.userId;
++        if (fromDriverId && toRiderId) {
++          const existing = await db
++            .select({ id: ratings.id })
++            .from(ratings)
++            .where(
++              and(
++                eq(ratings.rideId, ride.id),
++                eq(ratings.fromUserId, fromDriverId),
++                eq(ratings.toUserId, toRiderId)
++              )
++            )
++            .limit(1);
++
++          // riderRating محقَّق أعلاه أنه ليس null/undefined
++          const rating = normalizeRating(riderRating) as number;
++          if (existing[0]) {
++            await db
++              .update(ratings)
++              .set({ rating, comment: "" })
++              .where(eq(ratings.id, existing[0].id));
++          } else {
++            await db.insert(ratings).values({
++              rideId: ride.id,
++              fromUserId: fromDriverId,
++              toUserId: toRiderId,
++              rating,
++              comment: "",
++            });
++          }
++          await updateUserAvgRating(toRiderId);
++        }
+       }
+     }
+ 
+     return NextResponse.json({ message: "تم تحديث الرحلة بنجاح" });
+   } catch (error) {
++    if (error instanceof Error && error.message.startsWith("التقييم")) {
++      return NextResponse.json({ error: error.message }, { status: 400 });
++    }
+     console.error("Error updating ride:", error);
+     return NextResponse.json({ error: "فشل تحديث الرحلة" }, { status: 500 });
+   }
+diff --git a/src/app/api/rides/route.ts b/src/app/api/rides/route.ts
+index 008d3fb..9c7ac36 100644
+--- a/src/app/api/rides/route.ts
++++ b/src/app/api/rides/route.ts
+@@ -1,15 +1,37 @@
+ import { NextRequest, NextResponse } from "next/server";
+ import { db } from "@/db";
+-import { rides, users } from "@/db/schema";
++import { rides } from "@/db/schema";
+ import { eq } from "drizzle-orm";
++import { requireAdminToken } from "@/lib/admin";
++
++/** قائمة الخدمات المسموحة (قيم موحدة قصيرة) */
++const ALLOWED_SERVICE_TYPES = ["ride", "goods", "ركشة ركاب", "توك توك بضائع", "تكسي"];
++
++const MAX_STRING = 300;
++
++/** تنظيف النصوص ومنع القيم الطويلة/الفارغة */
++function cleanText(value: unknown, label: string, max = MAX_STRING): string {
++  if (typeof value !== "string") {
++    throw new Error(`الحقل "${label}" مطلوب كنص`);
++  }
++  const cleaned = value.trim();
++  if (!cleaned) throw new Error(`الحقل "${label}" مطلوب`);
++  if (cleaned.length > max) {
++    throw new Error(`الحقل "${label}" أطول من المسموح (${max} حرفاً)`);
++  }
++  return cleaned;
++}
+ 
+ // ===== POST: إنشاء طلب رحلة جديد =====
+ export async function POST(request: NextRequest) {
++  // البوابة الإدارية أولاً — بدون الرمز لا يُكتب ولا يُقرأ أي شيء
++  const denied = requireAdminToken(request);
++  if (denied) return denied;
++
+   try {
+     const body = await request.json();
+     const { serviceType, pickupLocation, destination, userId, customerName } = body;
+ 
+-    // التحقق من الحقول المطلوبة
+     if (!serviceType || !pickupLocation || !destination) {
+       return NextResponse.json(
+         { error: "بيانات ناقصة (الخدمة، نقطة الانطلاق، والوجهة مطلوبة)" },
+@@ -17,21 +39,48 @@ export async function POST(request: NextRequest) {
+       );
+     }
+ 
+-    // إدراج الرحلة في قاعدة البيانات
++    const cleanService = cleanText(serviceType, "الخدمة", 20);
++    if (!ALLOWED_SERVICE_TYPES.includes(cleanService)) {
++      return NextResponse.json(
++        { error: "نوع الخدمة غير مسموح به" },
++        { status: 400 }
++      );
++    }
++
++    const cleanPickup = cleanText(pickupLocation, "نقطة الانطلاق");
++    const cleanDestination = cleanText(destination, "الوجهة");
++    const cleanName = customerName ? cleanText(customerName, "اسم العميل", 50) : null;
++
++    // إدراج الرحلة في قاعدة البيانات (بدون أي حقول حساسة من المتصل)
+     const [newRide] = await db
+       .insert(rides)
+       .values({
+-        serviceType,
+-        pickupLocation,
+-        destination,
+-        userId: userId || null,
+-        customerName: customerName || null,
++        serviceType: cleanService,
++        pickupLocation: cleanPickup,
++        destination: cleanDestination,
++        userId:
++          userId === undefined || userId === null
++            ? null
++            : Number.isInteger(Number(userId))
++              ? Number(userId)
++              : null,
++        customerName: cleanName,
+         status: "searching", // الحالة الافتراضية
+       })
+-      .returning();
++      .returning({
++        id: rides.id,
++        serviceType: rides.serviceType,
++        pickupLocation: rides.pickupLocation,
++        destination: rides.destination,
++        status: rides.status,
++        createdAt: rides.createdAt,
++      });
+ 
+     return NextResponse.json({ ride: newRide }, { status: 201 });
+   } catch (error) {
++    if (error instanceof Error && error.message.startsWith("الحقل")) {
++      return NextResponse.json({ error: error.message }, { status: 400 });
++    }
+     console.error("❌ Error creating ride:", error);
+     return NextResponse.json(
+       { error: "حدث خطأ أثناء حفظ الطلب" },
+@@ -40,33 +89,35 @@ export async function POST(request: NextRequest) {
+   }
+ }
+ 
+-// ===== GET: جلب الطلبات (مع رقم الحساب البنكي) =====
++// ===== GET: جلب الطلبات (إداري فقط — بدون أي بيانات حساسة) =====
+ export async function GET(request: NextRequest) {
++  // البوابة الإدارية أولاً
++  const denied = requireAdminToken(request);
++  if (denied) return denied;
++
+   try {
+     const { searchParams } = new URL(request.url);
+     const status = searchParams.get("status");
+ 
+-    // بناء الاستعلام الأساسي مع ربط جدول المستخدمين
+-    let query = db
+-      .select({
+-        id: rides.id,
+-        pickupLocation: rides.pickupLocation,
+-        destination: rides.destination,
+-        status: rides.status,
+-        customerPhone: rides.customerPhone,
+-        customerName: rides.customerName,
+-        userId: rides.userId,
+-        bankAccount: users.bankAccount, // جلب رقم الحساب من جدول المستخدمين
+-      })
+-      .from(rides)
+-      .leftJoin(users, eq(rides.userId, users.id)); // الربط بين userId و id
++    // اختيار أعمدة آمنة فقط:
++    // ❌ customerPhone / bankAccount / customerName لم تعُد تُرجَع إطلاقاً
++    const safeColumns = {
++      id: rides.id,
++      serviceType: rides.serviceType,
++      pickupLocation: rides.pickupLocation,
++      destination: rides.destination,
++      status: rides.status,
++      driverId: rides.driverId,
++      driverLat: rides.driverLat,
++      driverLng: rides.driverLng,
++      createdAt: rides.createdAt,
++    };
+ 
+     // تصفية حسب الحالة إذا وُجدت
+-    if (status) {
+-      query = query.where(eq(rides.status, status));
+-    }
++    const results = status
++      ? await db.select(safeColumns).from(rides).where(eq(rides.status, status))
++      : await db.select(safeColumns).from(rides);
+ 
+-    const results = await query;
+     return NextResponse.json(results);
+   } catch (error) {
+     console.error("❌ Error fetching rides:", error);
+diff --git a/src/app/api/user/update/route.ts b/src/app/api/user/update/route.ts
+index 80411f6..3604f45 100644
+--- a/src/app/api/user/update/route.ts
++++ b/src/app/api/user/update/route.ts
+@@ -2,18 +2,43 @@ import { NextRequest, NextResponse } from "next/server";
+ import { db } from "@/db";
+ import { users } from "@/db/schema";
+ import { eq } from "drizzle-orm";
++import { requireAdminToken } from "@/lib/admin";
+ 
+ export async function PATCH(request: NextRequest) {
++  // البوابة الإدارية أولاً — تعديل بيانات المستخدمين ليس مفتوحاً للعامة
++  const denied = requireAdminToken(request);
++  if (denied) return denied;
++
+   try {
+     const { userId, bankAccount } = await request.json();
+-    if (!userId) return NextResponse.json({ error: "معرف المستخدم مطلوب" }, { status: 400 });
++    const numericUserId = Number(userId);
++    if (!Number.isInteger(numericUserId) || numericUserId <= 0) {
++      return NextResponse.json(
++        { error: "معرّف مستخدم غير صالح" },
++        { status: 400 }
++      );
++    }
++
++    const cleanBankAccount =
++      bankAccount === undefined || bankAccount === null || bankAccount === ""
++        ? null
++        : String(bankAccount).trim().slice(0, 50);
+ 
+-    await db
++    const [updated] = await db
+       .update(users)
+-      .set({ bankAccount: bankAccount || null })
+-      .where(eq(users.id, userId));
+-      
+-    return NextResponse.json({ message: "تم تحديث الحساب" });
++      .set({ bankAccount: cleanBankAccount })
++      .where(eq(users.id, numericUserId))
++      .returning({ id: users.id });
++
++    if (!updated) {
++      return NextResponse.json(
++        { error: "المستخدم غير موجود" },
++        { status: 404 }
++      );
++    }
++
++    // لا نُعيد رقم الحساب في الاستجابة إطلاقاً
++    return NextResponse.json({ message: "تم تحديث بيانات المستخدم" });
+   } catch (error) {
+     console.error("Error updating user:", error);
+     return NextResponse.json({ error: "فشل التحديث" }, { status: 500 });
+diff --git a/src/app/dashboard/page.tsx b/src/app/dashboard/page.tsx
+index 7377ec7..e1bf7f1 100644
+--- a/src/app/dashboard/page.tsx
++++ b/src/app/dashboard/page.tsx
+@@ -2,52 +2,84 @@
+ 
+ export const dynamic = "force-dynamic";
+ 
+-import { useState, useEffect } from "react";
+-import { createClient } from "@supabase/supabase-rb"; // أو حسب مكتبة supabase المصدرة لديك
++import { useState, useEffect, useCallback } from "react";
++import AdminGate, { getAdminToken, clearAdminToken } from "@/components/AdminGate";
+ 
+-export default function DashboardPage() {
+-  const [rides, setRides] = useState<any[]>([]);
++interface RideRow {
++  id: number | string;
++  serviceType?: string | null;
++  pickupLocation?: string | null;
++  destination?: string | null;
++  status?: string | null;
++  createdAt?: string | null;
++}
++
++const STATUS_LABELS: Record<string, { label: string; className: string }> = {
++  searching: { label: "قيد البحث", className: "bg-amber-500/10 text-amber-400 border border-amber-500/20" },
++  accepted: { label: "قيد التنفيذ", className: "bg-blue-500/10 text-blue-400 border border-blue-500/20" },
++  arrived: { label: "وصل السائق", className: "bg-purple-500/10 text-purple-400 border border-purple-500/20" },
++  completed: { label: "مكتملة", className: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" },
++  cancelled: { label: "ملغاة", className: "bg-red-500/10 text-red-400 border border-red-500/20" },
++};
++
++function DashboardContent() {
++  const [rides, setRides] = useState<RideRow[]>([]);
+   const [loading, setLoading] = useState<boolean>(true);
++  const [gateError, setGateError] = useState<string | null>(null);
++  const [locked, setLocked] = useState(false);
+   const [stats, setStats] = useState({
+     totalRides: 0,
+     completedRides: 0,
+-    pendingRides: 0,
++    activeRides: 0,
+   });
+ 
+-  useEffect(() => {
+-    fetchDashboardData();
+-  }, []);
+-
+-  const fetchDashboardData = async () => {
++  const fetchDashboardData = useCallback(async () => {
+     try {
+       setLoading(true);
+-      const res = await fetch("/api/rides");
+-      if (res.ok) {
+-        const data = await res.json();
+-        const allRides = data.rides || [];
+-        setRides(allRides);
+-
+-        // حساب الإحصائيات
+-        const completed = allRides.filter((r: any) => r.status === "completed").length;
+-        const pending = allRides.filter((r: any) => r.status === "pending").length;
+-
+-        setStats({
+-          totalRides: allRides.length,
+-          completedRides: completed,
+-          pendingRides: pending,
+-        });
++      setGateError(null);
++      const token = getAdminToken();
++      const res = await fetch("/api/rides", {
++        headers: token ? { "x-admin-token": token } : {},
++      });
++
++      if (res.status === 401 || res.status === 403) {
++        clearAdminToken();
++        setLocked(true);
++        setGateError("رمز الإدارة غير صحيح أو غير مضبوط على الخادم.");
++        return;
+       }
++
++      const data = await res.json();
++      if (!res.ok) throw new Error(data.error || "فشل جلب البيانات");
++      setLocked(false);
++      const allRides = Array.isArray(data) ? data : [];
++      setRides(allRides);
++
++      const completed = allRides.filter((r) => r.status === "completed").length;
++      const active = allRides.filter(
++        (r) => r.status === "searching" || r.status === "accepted" || r.status === "arrived"
++      ).length;
++
++      setStats({
++        totalRides: allRides.length,
++        completedRides: completed,
++        activeRides: active,
++      });
+     } catch (error) {
+       console.error("خطأ في جلب بيانات لوحة التحكم:", error);
++      setGateError(error instanceof Error ? error.message : "خطأ في جلب البيانات");
+     } finally {
+       setLoading(false);
+     }
+-  };
++  }, []);
++
++  useEffect(() => {
++    fetchDashboardData();
++  }, [fetchDashboardData]);
+ 
+   return (
+     <main className="min-h-screen bg-[#0a0c10] text-white p-4 md:p-8 font-sans" dir="rtl">
+       <div className="max-w-5xl mx-auto space-y-6">
+-        
+         {/* الهيدر */}
+         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+           <div>
+@@ -56,7 +88,8 @@ export default function DashboardPage() {
+           </div>
+           <button
+             onClick={fetchDashboardData}
+-            className="bg-slate-800 hover:bg-slate-700 text-xs px-4 py-2 rounded-xl border border-slate-700 transition-all active:scale-95"
++            disabled={loading}
++            className="bg-slate-800 hover:bg-slate-700 text-xs px-4 py-2 rounded-xl border border-slate-700 transition-all active:scale-95 disabled:opacity-50"
+           >
+             🔄 تحديث البيانات
+           </button>
+@@ -75,11 +108,26 @@ export default function DashboardPage() {
+           </div>
+ 
+           <div className="bg-[#12161f] border border-slate-800 p-5 rounded-2xl shadow-lg">
+-            <p className="text-xs text-slate-400">الطلبات قيد الانتظار</p>
+-            <p className="text-3xl font-black text-amber-400 mt-2">{stats.pendingRides}</p>
++            <p className="text-xs text-slate-400">الطلبات النشطة (بحث/تنفيذ)</p>
++            <p className="text-3xl font-black text-amber-400 mt-2">{stats.activeRides}</p>
+           </div>
+         </div>
+ 
++        {gateError && (
++          <div className="bg-red-500/10 border border-red-500/30 text-red-300 text-xs rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2">
++            <span>⚠️ {gateError}</span>
++            {locked && (
++              <button
++                type="button"
++                onClick={() => { clearAdminToken(); window.location.reload(); }}
++                className="bg-red-500/20 hover:bg-red-500/30 text-red-200 px-3 py-1.5 rounded-lg border border-red-500/30 font-bold transition"
++              >
++                إعادة إدخال الرمز 🔐
++              </button>
++            )}
++          </div>
++        )}
++
+         {/* جدول أو قائمة الرحلات */}
+         <div className="bg-[#12161f] border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+           <h2 className="text-base font-bold text-white">سجل الرحلات والأوامر</h2>
+@@ -100,43 +148,46 @@ export default function DashboardPage() {
+                     <th className="py-3 px-2">الخدمة</th>
+                     <th className="py-3 px-2">نقطة الانطلاق</th>
+                     <th className="py-3 px-2">الوجهة</th>
+-                    <th className="py-3 px-2">السعر</th>
+                     <th className="py-3 px-2">الحالة</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-800/50">
+-                  {rides.map((ride: any) => (
+-                    <tr key={ride.id} className="hover:bg-slate-800/20">
+-                      <td className="py-3 px-2 font-bold text-amber-400">{ride.serviceType || "ركشة"}</td>
+-                      <td className="py-3 px-2 text-white">{ride.pickupLocation}</td>
+-                      <td className="py-3 px-2 text-white">{ride.destination}</td>
+-                      <td className="py-3 px-2 text-emerald-400 font-bold">{ride.offeredPrice} ج.س</td>
+-                      <td className="py-3 px-2">
+-                        <span
+-                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+-                            ride.status === "completed"
+-                              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+-                              : ride.status === "accepted"
+-                              ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+-                              : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+-                          }`}
+-                        >
+-                          {ride.status === "completed"
+-                            ? "مكتملة"
+-                            : ride.status === "accepted"
+-                            ? "قيد التنفيذ"
+-                            : "قيد الانتظار"}
+-                        </span>
+-                      </td>
+-                    </tr>
+-                  ))}
++                  {rides.map((ride) => {
++                    const statusInfo = STATUS_LABELS[ride.status || ""] || {
++                      label: ride.status || "—",
++                      className: "bg-slate-500/10 text-slate-400 border border-slate-500/20",
++                    };
++                    return (
++                      <tr key={ride.id} className="hover:bg-slate-800/20">
++                        <td className="py-3 px-2 font-bold text-amber-400">
++                          {ride.serviceType || "ركشة"}
++                        </td>
++                        <td className="py-3 px-2 text-white">{ride.pickupLocation || "—"}</td>
++                        <td className="py-3 px-2 text-white">{ride.destination || "—"}</td>
++                        <td className="py-3 px-2">
++                          <span
++                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${statusInfo.className}`}
++                          >
++                            {statusInfo.label}
++                          </span>
++                        </td>
++                      </tr>
++                    );
++                  })}
+                 </tbody>
+               </table>
+             </div>
+           )}
+         </div>
+-
+       </div>
+     </main>
+   );
+ }
++
++export default function DashboardPage() {
++  return (
++    <AdminGate title="بوابة لوحة التحكم">
++      <DashboardContent />
++    </AdminGate>
++  );
++}
+diff --git a/src/app/driver/page.tsx b/src/app/driver/page.tsx
+index a7fd472..589ba0c 100644
+--- a/src/app/driver/page.tsx
++++ b/src/app/driver/page.tsx
+@@ -1,24 +1,30 @@
+ "use client";
+ 
+-import { useState, useEffect } from "react";
++import { useState, useEffect, useRef, useCallback } from "react";
+ import Map from "@/components/Map";
+ import { supabase } from "@/lib/supabase";
++import { normalizeSudanesePhone, formatPrice, maskAccount } from "@/lib/format";
+ 
+ interface Ride {
+-  id: string;
++  id: string | number;
+   passenger_name: string;
+   phone_number: string;
+   pickup_location: string;
+   destination: string;
+   offered_price: number | null;
+   service_type: string;
+-  status: "pending" | "accepted" | "completed";
++  status: "pending" | "accepted" | "completed" | "cancelled";
+   driver_phone?: string;
+ }
+ 
++/** مقارنة معرّفات متسامحة (رقم/نص) */
++const sameId = (a: string | number | undefined, b: string | number | undefined) =>
++  a !== undefined && b !== undefined && String(a) === String(b);
++
+ export default function DriverDashboard() {
+-  const [driverPhone, setDriverPhone] = useState("");
++  const [phoneDigits, setPhoneDigits] = useState(""); // أرقام محلية فقط أثناء الكتابة
+   const [bankAccount, setBankAccount] = useState("");
++  const [showBank, setShowBank] = useState(false);
+   const [isDriverLoggedIn, setIsDriverLoggedIn] = useState(false);
+ 
+   const [isAvailable, setIsAvailable] = useState(true);
+@@ -26,15 +32,36 @@ export default function DriverDashboard() {
+   const [currentRide, setCurrentRide] = useState<Ride | null>(null);
+   const [activeTab, setActiveTab] = useState<"available" | "current">("available");
+ 
++  // refs لتفادي إعادة الاشتراك المتكرر في realtime
++  const driverPhoneRef = useRef("");
++  const currentRideRef = useRef<Ride | null>(null);
++  const isAvailableRef = useRef(true);
++  const acceptingRef = useRef(false);
++  const prevAvailableCountRef = useRef(0);
++  const audioCtxRef = useRef<AudioContext | null>(null);
++
++  /** مزامنة currentRide بين الحالة و ref */
++  const syncCurrentRide = useCallback((ride: Ride | null) => {
++    currentRideRef.current = ride;
++    setCurrentRide(ride);
++  }, []);
++
++  const driverFullPhone = normalizeSudanesePhone(phoneDigits) ?? "";
++
++  // استرجاع الجلسة المحفوظة
+   useEffect(() => {
+     if (typeof window !== "undefined") {
+       const savedPhone = localStorage.getItem("driver_phone");
+       const savedBank = localStorage.getItem("driver_bank");
+       if (savedPhone) {
+-        setDriverPhone(savedPhone);
+-        setBankAccount(savedBank || "");
+-        setIsDriverLoggedIn(true);
++        const normalized = normalizeSudanesePhone(savedPhone);
++        if (normalized) {
++          setPhoneDigits(normalized.replace("+249", ""));
++          driverPhoneRef.current = normalized;
++          setIsDriverLoggedIn(true);
++        }
+       }
++      if (savedBank) setBankAccount(savedBank);
+     }
+   }, []);
+ 
+@@ -45,56 +72,101 @@ export default function DriverDashboard() {
+     }
+   }, [isDriverLoggedIn]);
+ 
+-  // 2. تشغيل التنبيه الصوتي والإشعار عند وصول طلب جديد
++  /**
++   * 2. تنبيه WebAudio داخلي بالكامل (بدون أي ملف صوتي خارجي):
++   *    نغمتان قصيرتان تولَّدان داخل المتصفح — تعمل حتى بدون إنترنت
++   */
++  const playNewRideSound = useCallback(() => {
++    try {
++      const Ctx =
++        window.AudioContext ||
++        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
++      if (!Ctx) return;
++      if (!audioCtxRef.current) audioCtxRef.current = new Ctx();
++      const ctx = audioCtxRef.current;
++      if (ctx.state === "suspended") void ctx.resume();
++
++      const now = ctx.currentTime;
++      [880, 1174.66].forEach((freq, i) => {
++        const osc = ctx.createOscillator();
++        const gain = ctx.createGain();
++        osc.type = "sine";
++        osc.frequency.value = freq;
++        const start = now + i * 0.18;
++        gain.gain.setValueAtTime(0.0001, start);
++        gain.gain.exponentialRampToValueAtTime(0.22, start + 0.02);
++        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
++        osc.connect(gain);
++        gain.connect(ctx.destination);
++        osc.start(start);
++        osc.stop(start + 0.2);
++      });
++    } catch (err) {
++      console.log("Audio notification error:", err);
++    }
++  }, []);
++
++  // التنبيه عند وصول طلب جديد فعلياً (وليس عند كل إعادة رسم)
+   useEffect(() => {
+-    if (availableRides.length > 0 && isDriverLoggedIn && typeof window !== "undefined") {
+-      try {
+-        const audio = new Audio("https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3");
+-        audio.play().catch(() => {});
+-
+-        if ("Notification" in window && Notification.permission === "granted") {
+-          const latestRide = availableRides[0];
+-          new Notification("طلب مشوار جديد! 🛺", {
+-            body: `من: ${latestRide.pickup_location || "الموقع"} - إلى: ${latestRide.destination || "الوجهة"}`,
+-            icon: "/icon.png",
+-          });
++    if (!isDriverLoggedIn) return;
++    const count = availableRides.length;
++    if (count > prevAvailableCountRef.current && count > 0 && !currentRideRef.current) {
++      playNewRideSound();
++      if ("Notification" in window && Notification.permission === "granted") {
++        const latest = availableRides[0];
++        if (latest) {
++          try {
++            new Notification("طلب مشوار جديد! 🛺", {
++              body: `من: ${latest.pickup_location || "الموقع"} - إلى: ${latest.destination || "الوجهة"}`,
++              icon: "/icon.png",
++            });
++          } catch {
++            /* بعض المتصفحات تمنع الإنشاء من SW قديم */
++          }
+         }
+-      } catch (err) {
+-        console.log("Audio notification error:", err);
+       }
+     }
+-  }, [availableRides.length, isDriverLoggedIn]);
++    prevAvailableCountRef.current = count;
++  }, [availableRides.length, isDriverLoggedIn, playNewRideSound]);
+ 
+   const handleDriverLogin = (e: React.FormEvent) => {
+     e.preventDefault();
+-    let val = driverPhone.replace(/\D/g, "");
+-    if (val.startsWith("0")) val = val.slice(1);
+ 
+-    if (val.length < 9) {
+-      alert("الرجاء إدخال رقم هاتف سوداني صحيح (9 أرقام)");
++    const fullPhone = normalizeSudanesePhone(phoneDigits);
++    if (!fullPhone) {
++      alert("الرجاء إدخال رقم هاتف سوداني صحيح (9 أرقام تبدأ بـ 9)");
+       return;
+     }
+ 
+-    if (!bankAccount.trim()) {
+-      alert("الرجاء إدخال رقم الحساب البنكي لتحويل المستحقات");
++    const cleanBank = bankAccount.trim().replace(/\s+/g, "");
++    if (cleanBank.length < 6) {
++      alert("الرجاء إدخال رقم حساب بنكي صحيح (6 أرقام على الأقل) لتحويل المستحقات");
+       return;
+     }
+ 
+-    const fullPhone = `+249${val}`;
+     localStorage.setItem("driver_phone", fullPhone);
+-    localStorage.setItem("driver_bank", bankAccount);
+-    setDriverPhone(fullPhone);
++    localStorage.setItem("driver_bank", cleanBank);
++    driverPhoneRef.current = fullPhone;
++    setPhoneDigits(fullPhone.replace("+249", ""));
++    setBankAccount(cleanBank);
+     setIsDriverLoggedIn(true);
+   };
+ 
+   const handleDriverLogout = () => {
+     localStorage.removeItem("driver_phone");
+     localStorage.removeItem("driver_bank");
++    driverPhoneRef.current = "";
++    currentRideRef.current = null;
+     setIsDriverLoggedIn(false);
+-    setDriverPhone("");
++    setPhoneDigits("");
+     setBankAccount("");
++    setShowBank(false);
++    setCurrentRide(null);
++    setAvailableRides([]);
++    setActiveTab("available");
+   };
+ 
++  // 3. اشتراك واحد فقط في realtime طول فترة تسجيل الدخول (لا يتكرر مع كل تحديث)
+   useEffect(() => {
+     if (!isDriverLoggedIn) return;
+ 
+@@ -104,18 +176,26 @@ export default function DriverDashboard() {
+         .select("*")
+         .order("created_at", { ascending: false });
+ 
+-      // استبعاد المشواير الملغاة من القائمة
+-      const visible = (data || []).filter((r: any) => r.status !== "cancelled");
++      // استبعاد المشاوير الملغاة من القائمة
++      const visible = (data || []).filter(
++        (r: any) => r.status !== "cancelled"
++      );
+ 
+       if (!error && visible) {
+         const pending = visible.filter((r: any) => r.status === "pending");
+-        const accepted = visible.find((r: any) => r.status === "accepted");
++        // «مشواري أنا» فقط: الرحلة المقبولة تظهر كـ"حالية" لو كانت driver_phone فيها = رقمي
++        const myAccepted = visible.find(
++          (r: any) =>
++            r.status === "accepted" && r.driver_phone === driverPhoneRef.current
++        );
+         setAvailableRides(pending);
+-        if (accepted) setCurrentRide(accepted);
++        if (myAccepted && !currentRideRef.current) {
++          syncCurrentRide(myAccepted);
++        }
+       }
+     };
+ 
+-    fetchRides();
++    void fetchRides();
+ 
+     const channel = supabase
+       .channel("driver-rides-channel")
+@@ -126,38 +206,58 @@ export default function DriverDashboard() {
+           if (payload.eventType === "INSERT") {
+             const newRide = payload.new as Ride;
+             if (newRide.status === "pending") {
+-              setAvailableRides((prev) => [newRide, ...prev]);
+-            }
+-          } else if (payload.eventType === "UPDATE") {
+-            const upd: any = payload.new;
+-            if (upd.status === "cancelled") {
+-              // الطلب اتلغى من الراكب: شيله من القايمة، ولو كان مشوارك الحالي بلّغ
+-              setAvailableRides((prev) => prev.filter((r) => r.id !== upd.id));
+-              setCurrentRide((cur) => {
+-                if (cur && cur.id === upd.id) {
+-                  alert("تم إلغاء المشوار ده من الراكب");
+-                  setActiveTab("available");
+-                  return null;
+-                }
+-                return cur;
+-              });
+-              return;
+-            }
+-            const updated = payload.new as Ride;
+-            if (updated.status === "pending") {
+               setAvailableRides((prev) =>
+-                prev.map((r) => (r.id === updated.id ? updated : r))
++                prev.some((r) => sameId(r.id, newRide.id))
++                  ? prev
++                  : [newRide, ...prev]
+               );
+-            } else if (updated.status === "accepted") {
+-              setAvailableRides((prev) => prev.filter((r) => r.id !== updated.id));
+-              if (currentRide?.id === updated.id || !currentRide) {
+-                setCurrentRide(updated);
+-              }
+-            } else if (updated.status === "completed") {
+-              if (currentRide?.id === updated.id) {
+-                setCurrentRide(null);
+-                setActiveTab("available");
+-              }
++            }
++            return;
++          }
++
++          if (payload.eventType !== "UPDATE") return;
++          const upd = payload.new as Ride;
++
++          if (upd.status === "cancelled") {
++            // الطلب اتلغى: شيله من القايمة، ولو كان مشواري الحالي بلّغ
++            setAvailableRides((prev) => prev.filter((r) => !sameId(r.id, upd.id)));
++            if (currentRideRef.current && sameId(currentRideRef.current.id, upd.id)) {
++              alert("تم إلغاء المشوار ده من الراكب");
++              syncCurrentRide(null);
++              setActiveTab("available");
++            }
++            return;
++          }
++
++          if (upd.status === "pending") {
++            setAvailableRides((prev) => {
++              const exists = prev.some((r) => sameId(r.id, upd.id));
++              return exists
++                ? prev.map((r) => (sameId(r.id, upd.id) ? upd : r))
++                : [upd, ...prev];
++            });
++            return;
++          }
++
++          if (upd.status === "accepted") {
++            // أي سائق قبله؟ خلاص يخرج من قائمة المتاح
++            setAvailableRides((prev) => prev.filter((r) => !sameId(r.id, upd.id)));
++
++            // «مشواري أنا» فقط: لو القبول ده لرقمي ولسه مفيش مشوار حالي → خلّيه حالي
++            if (
++              upd.driver_phone === driverPhoneRef.current &&
++              !currentRideRef.current
++            ) {
++              syncCurrentRide(upd);
++            }
++            return;
++          }
++
++          if (upd.status === "completed") {
++            if (currentRideRef.current && sameId(currentRideRef.current.id, upd.id)) {
++              alert("تم إنهاء المشوار 🏁");
++              syncCurrentRide(null);
++              setActiveTab("available");
+             }
+           }
+         }
+@@ -167,44 +267,75 @@ export default function DriverDashboard() {
+     return () => {
+       supabase.removeChannel(channel);
+     };
+-  }, [isDriverLoggedIn, currentRide]);
++    // الاشتراك يُنشأ مرة واحدة عند الدخول فقط
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [isDriverLoggedIn]);
+ 
+   const acceptRide = async (ride: Ride) => {
+-    const { error } = await supabase
+-      .from("rides")
+-      .update({ 
+-        status: "accepted",
+-        driver_phone: driverPhone 
+-      })
+-      .eq("id", ride.id);
++    // قفل القبول المزدوج: لا قبول جديد أثناء مشوار حالي أو أثناء طلب قيد التنفيذ
++    if (acceptingRef.current) return;
++    if (currentRideRef.current) {
++      alert("عندك مشوار حالي — أنهيه أولاً قبل ما تقبل طلب جديد");
++      return;
++    }
++    if (!isAvailableRef.current) {
++      alert("فعّل «متاح للطلبات 🟢» أولاً عشان تقدر تقبل مشاوير");
++      return;
++    }
+ 
+-    if (error) {
+-      alert("خطأ أثناء قبول الطلب: " + error.message);
+-    } else {
+-      const updatedRide = { ...ride, status: "accepted" as const, driver_phone: driverPhone };
+-      setCurrentRide(updatedRide);
++    acceptingRef.current = true;
++    try {
++      // تحديث شرطي: ما يتقبلش إلا لو لسه pending — يمنع سباق سائقين على نفس الطلب
++      const { data, error } = await supabase
++        .from("rides")
++        .update({ status: "accepted", driver_phone: driverFullPhone })
++        .eq("id", ride.id)
++        .eq("status", "pending")
++        .select()
++        .maybeSingle();
++
++      if (error || !data) {
++        setAvailableRides((prev) => prev.filter((r) => !sameId(r.id, ride.id)));
++        alert("الطلب ده اتقبل من سائق تاني قبل ما تدوس — جرب طلب تاني");
++        return;
++      }
++
++      syncCurrentRide(data as Ride);
+       setActiveTab("current");
++    } finally {
++      acceptingRef.current = false;
+     }
+   };
+ 
+-  const completeRide = async (rideId: string) => {
++  const completeRide = async (rideId: string | number) => {
++    if (acceptingRef.current) return;
++
+     const { error } = await supabase
+       .from("rides")
+       .update({ status: "completed" })
+-      .eq("id", rideId);
++      .eq("id", rideId)
++      .eq("status", "accepted"); // شرط: تُكمل الرحلة الحالية فقط
+ 
+     if (error) {
+       alert("خطأ أثناء إنهاء المشوار: " + error.message);
+     } else {
+-      setCurrentRide(null);
++      syncCurrentRide(null);
+       setActiveTab("available");
++      prevAvailableCountRef.current = 0;
+     }
+   };
+ 
++  const toggleAvailability = () => {
++    const next = !isAvailable;
++    isAvailableRef.current = next;
++    setIsAvailable(next);
++  };
++
++  const maskedBank = maskAccount(bankAccount);
++
+   return (
+     <div className="min-h-screen bg-[#161b22] text-slate-100 p-4 flex flex-col justify-between w-full min-w-full">
+       <div className="w-full max-w-xl mx-auto flex-1 flex flex-col justify-between space-y-4">
+-        
+         {/* الشريط العلوي */}
+         <header className="flex justify-between items-center pt-2 pb-1">
+           <div className="flex items-center gap-2">
+@@ -230,8 +361,8 @@ export default function DriverDashboard() {
+ 
+             <div>
+               <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">📞 رقم الهاتف:</label>
+-              
+-              <div 
++
++              <div
+                 className="flex items-stretch border border-slate-700 rounded-xl overflow-hidden bg-[#0d1117] focus-within:border-amber-500"
+                 style={{ direction: 'ltr' }}
+               >
+@@ -243,8 +374,10 @@ export default function DriverDashboard() {
+                 <input
+                   type="tel"
+                   required
+-                  value={driverPhone.replace("+249", "")}
+-                  onChange={(e) => setDriverPhone(e.target.value.replace(/\D/g, ""))}
++                  inputMode="numeric"
++                  maxLength={10}
++                  value={phoneDigits}
++                  onChange={(e) => setPhoneDigits(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                   placeholder="9XXXXXXXX"
+                   className="w-full bg-transparent px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-left"
+                   style={{ direction: 'ltr' }}
+@@ -254,14 +387,24 @@ export default function DriverDashboard() {
+ 
+             <div>
+               <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">🏦 رقم الحساب البنكي (بنكك/صكوك):</label>
+-              <input
+-                type="text"
+-                required
+-                value={bankAccount}
+-                onChange={(e) => setBankAccount(e.target.value)}
+-                placeholder="أدخل رقم الحساب البنكي"
+-                className="w-full bg-[#0d1117] border border-slate-700 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-right focus:border-amber-500"
+-              />
++              <div className="relative">
++                <input
++                  type={showBank ? "text" : "password"}
++                  required
++                  value={bankAccount}
++                  onChange={(e) => setBankAccount(e.target.value.replace(/\s+/g, ""))}
++                  placeholder="أدخل رقم الحساب البنكي"
++                  className="w-full bg-[#0d1117] border border-slate-700 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-right focus:border-amber-500 pl-14"
++                />
++                <button
++                  type="button"
++                  onClick={() => setShowBank((s) => !s)}
++                  tabIndex={-1}
++                  className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1.5 rounded-lg border border-slate-700 transition"
++                >
++                  {showBank ? "إخفاء 🙈" : "إظهار 👁️"}
++                </button>
++              </div>
+             </div>
+ 
+             <button
+@@ -273,11 +416,28 @@ export default function DriverDashboard() {
+           </form>
+         ) : (
+           <>
+-            {/* شريط معلومات السائق */}
++            {/* شريط معلومات السائق — الحساب البنكي مقنّع */}
+             <div className="flex items-center justify-between bg-[#0d1117] p-3 rounded-2xl border border-slate-800">
+               <div className="text-xs text-slate-300 space-y-1">
+-                <div>📞 هاتف: <span className="font-mono text-amber-400 font-bold" style={{ direction: "ltr", display: "inline-block" }}>{driverPhone}</span></div>
+-                <div>🏦 الحساب: <span className="font-mono text-amber-400 font-bold">{bankAccount}</span></div>
++                <div>📞 هاتف: <span className="font-mono text-amber-400 font-bold" style={{ direction: "ltr", display: "inline-block" }}>+249{phoneDigits}</span></div>
++                <div className="flex items-center gap-1.5">
++                  <span>🏦 الحساب:</span>
++                  <span className="font-mono text-amber-400 font-bold" dir="ltr">
++                    {maskedBank || "—"}
++                  </span>
++                  <button
++                    type="button"
++                    onClick={() => setShowBank((s) => !s)}
++                    className="text-[9px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 transition"
++                  >
++                    {showBank ? "إخفاء" : "إظهار"}
++                  </button>
++                </div>
++                {showBank && bankAccount && (
++                  <div className="text-[10px] text-slate-500">
++                    الرقم الكامل: <span className="font-mono text-slate-300">{bankAccount}</span>
++                  </div>
++                )}
+               </div>
+               <button
+                 onClick={handleDriverLogout}
+@@ -291,7 +451,7 @@ export default function DriverDashboard() {
+             <div className="flex justify-between items-center bg-[#0d1117] p-3 rounded-2xl border border-slate-800">
+               <span className="text-sm font-semibold text-slate-300">حالة التواجد:</span>
+               <button
+-                onClick={() => setIsAvailable(!isAvailable)}
++                onClick={toggleAvailability}
+                 className={`text-xs px-4 py-2 rounded-xl font-extrabold transition flex items-center gap-2 ${
+                   isAvailable
+                     ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30"
+@@ -335,7 +495,11 @@ export default function DriverDashboard() {
+             {/* المحتوى */}
+             {activeTab === "available" ? (
+               <div className="space-y-3 flex-1">
+-                {availableRides.length === 0 ? (
++                {!isAvailable ? (
++                  <div className="text-center py-10 bg-[#0d1117] border border-slate-800 rounded-2xl text-slate-500 text-xs font-medium">
++                    أنت في وضع «مشغول / استراحة 🔴» — الطلبات الجديدة لن تُقبل منك.
++                  </div>
++                ) : availableRides.length === 0 ? (
+                   <div className="text-center py-10 bg-[#0d1117] border border-slate-800 rounded-2xl text-slate-500 text-xs font-medium">
+                     لا توجد طلبات متاحة حالياً. انتظر قليلاً... ⏳
+                   </div>
+@@ -351,16 +515,16 @@ export default function DriverDashboard() {
+                       <div className="text-xs space-y-1.5 text-slate-300">
+                         <div>📍 من: <span className="text-white font-semibold">{ride.pickup_location}</span></div>
+                         <div>🏁 إلى: <span className="text-white font-semibold">{ride.destination}</span></div>
+-                        {ride.offered_price && (
++                        {ride.offered_price ? (
+                           <div className="text-amber-400 font-bold font-mono text-sm">
+-                            💰 السعر المقترح: <span style={{ direction: "ltr", display: "inline-block" }}>{ride.offered_price} ج.س</span>
++                            💰 السعر المقترح: <span style={{ direction: "ltr", display: "inline-block" }}>{formatPrice(ride.offered_price)} ج.س</span>
+                           </div>
+-                        )}
++                        ) : null}
+                         <div className="text-slate-400 flex items-center justify-between pt-1">
+                           <span>📞 الهاتف:</span>
+-                          <a 
+-                            href={`tel:${ride.phone_number}`} 
+-                            className="font-mono text-amber-400 hover:underline font-bold text-sm" 
++                          <a
++                            href={`tel:${ride.phone_number}`}
++                            className="font-mono text-amber-400 hover:underline font-bold text-sm"
+                             style={{ direction: "ltr" }}
+                           >
+                             {ride.phone_number}
+@@ -369,9 +533,10 @@ export default function DriverDashboard() {
+                       </div>
+                       <button
+                         onClick={() => acceptRide(ride)}
+-                        className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg transition"
++                        disabled={!!currentRide || acceptingRef.current}
++                        className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
+                       >
+-                        قبول المشوار ✅
++                        {currentRide ? "عندك مشوار حالي أولاً" : "قبول المشوار ✅"}
+                       </button>
+                     </div>
+                   ))
+@@ -386,22 +551,22 @@ export default function DriverDashboard() {
+                 ) : (
+                   <div className="bg-[#0d1117] border border-slate-700/80 rounded-2xl p-4 space-y-3.5 shadow-lg">
+                     <div className="flex justify-between items-center text-xs border-b border-slate-800 pb-2.5">
+-                      <span className="font-bold text-emerald-400 text-sm">🟢 مشوار جاري</span>
++                      <span className="font-bold text-emerald-400 text-sm">🟢 مشوار جاري (مشواري أنا)</span>
+                       <span className="font-bold text-white text-sm">👤 {currentRide.passenger_name}</span>
+                     </div>
+                     <div className="text-xs space-y-1.5 text-slate-300">
+                       <div>📍 من: <span className="text-white font-semibold">{currentRide.pickup_location}</span></div>
+                       <div>🏁 إلى: <span className="text-white font-semibold">{currentRide.destination}</span></div>
+-                      {currentRide.offered_price && (
++                      {currentRide.offered_price ? (
+                         <div className="text-amber-400 font-bold font-mono text-sm">
+-                          💰 السعر المقترح: <span style={{ direction: "ltr", display: "inline-block" }}>{currentRide.offered_price} ج.س</span>
++                          💰 السعر المقترح: <span style={{ direction: "ltr", display: "inline-block" }}>{formatPrice(currentRide.offered_price)} ج.س</span>
+                         </div>
+-                      )}
++                      ) : null}
+                       <div className="text-slate-400 flex items-center justify-between pt-1">
+                         <span>📞 الهاتف:</span>
+-                        <a 
+-                          href={`tel:${currentRide.phone_number}`} 
+-                          className="font-mono text-amber-400 hover:underline font-bold text-sm" 
++                        <a
++                          href={`tel:${currentRide.phone_number}`}
++                          className="font-mono text-amber-400 hover:underline font-bold text-sm"
+                           style={{ direction: "ltr" }}
+                         >
+                           {currentRide.phone_number}
+@@ -428,7 +593,8 @@ export default function DriverDashboard() {
+ 
+                     <button
+                       onClick={() => completeRide(currentRide.id)}
+-                      className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg transition"
++                      disabled={acceptingRef.current}
++                      className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg transition disabled:opacity-50"
+                     >
+                       إكمال / إنهاء المشوار 🏁
+                     </button>
+@@ -438,7 +604,6 @@ export default function DriverDashboard() {
+             )}
+           </>
+         )}
+-
+       </div>
+     </div>
+   );
+diff --git a/src/app/login/page.tsx b/src/app/login/page.tsx
+index 8900fc8..11e645a 100644
+--- a/src/app/login/page.tsx
++++ b/src/app/login/page.tsx
+@@ -20,11 +20,12 @@ export default function LoginPage() {
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({ phone }),
+       });
++      const data = await res.json();
+       if (res.ok) {
+         setStep("code");
+-        alert("تم إرسال الرمز (في التجربة: 1234)");
++        alert("تم إرسال رمز التحقق إلى هاتفك");
+       } else {
+-        alert("فشل إرسال الرمز");
++        alert(data.error || "فشل إرسال الرمز");
+       }
+     } catch (error) {
+       alert("خطأ في الاتصال");
+@@ -114,11 +115,14 @@ export default function LoginPage() {
+                 type="text"
+                 value={code}
+                 onChange={(e) => setCode(e.target.value)}
+-                placeholder="أدخل الرمز (1234)"
++                placeholder="أدخل الرمز"
+                 className="w-full border border-gray-300 rounded-xl px-4 py-3 text-gray-900 focus:ring-2 focus:ring-indigo-500 outline-none"
+                 dir="ltr"
+               />
+-              <p className="text-xs text-gray-600 mt-1">✨ للتجربة، استخدم الرمز: <strong>1234</strong></p>
++              <p className="text-xs text-amber-700 mt-1 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5 leading-relaxed">
++                ⚠️ رمز التجربة الثابت (1234) أُزيل نهائياً — التسجيل بهذه الصفحة
++                موقوف مؤقتاً لحين تفعيل خدمة الرمز الحقيقية.
++              </p>
+             </div>
+             <button
+               onClick={verifyCode}
+diff --git a/src/app/page.tsx b/src/app/page.tsx
+index 82efb8e..5e13cc4 100644
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -1,12 +1,22 @@
+ "use client";
+ 
+-import { useState, useEffect } from "react";
++import { useState, useEffect, useRef, useCallback } from "react";
+ import Map from "@/components/Map";
+ import { supabase } from "@/lib/supabase";
++import {
++  normalizeSudanesePhone,
++  formatPrice,
++  formatCountdown,
++} from "@/lib/format";
++
++/** مهلة البحث عن سائق بالثواني — بعدها تظهر خيارات رفع السعر/الإلغاء */
++const SEARCH_TIMEOUT_SECONDS = 120;
++/** نسبة زيادة السعر المقترح */
++const PRICE_RAISE_RATIO = 0.2;
+ 
+ export default function PassengerHome() {
+   const [passengerName, setPassengerName] = useState("");
+-  const [phoneNumber, setPhoneNumber] = useState("");
++  const [phoneNumber, setPhoneNumber] = useState(""); // أرقام فقط بدون +249 أثناء الكتابة
+   const [pickupLocation, setPickupLocation] = useState("");
+   const [destination, setDestination] = useState("");
+   const [offeredPrice, setOfferedPrice] = useState("");
+@@ -15,6 +25,18 @@ export default function PassengerHome() {
+   const [activeRide, setActiveRide] = useState<any>(null);
+   const [pickupCoords, setPickupCoords] = useState<[number, number] | null>(null);
+ 
++  // عدّاد مهلة البحث
++  const [searchSecondsLeft, setSearchSecondsLeft] = useState(SEARCH_TIMEOUT_SECONDS);
++  const [searchTimedOut, setSearchTimedOut] = useState(false);
++  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
++
++  const clearSearchTimer = useCallback(() => {
++    if (timerRef.current) {
++      clearInterval(timerRef.current);
++      timerRef.current = null;
++    }
++  }, []);
++
+   // 1. استرجاع البيانات والتحقق من المشوار النشط برقم ID المشوار
+   useEffect(() => {
+     if (typeof window !== "undefined") {
+@@ -23,7 +45,12 @@ export default function PassengerHome() {
+       const savedRideId = localStorage.getItem("active_ride_id");
+ 
+       if (savedName) setPassengerName(savedName);
+-      if (savedPhone) setPhoneNumber(savedPhone);
++      if (savedPhone) {
++        // نحتفظ في الحالة بالأرقام المحلية فقط (912345678) مهما كانت الصيغة المخزنة قديماً
++        const normalized = normalizeSudanesePhone(savedPhone);
++        if (normalized) setPhoneNumber(normalized.replace("+249", ""));
++        else setPhoneNumber(savedPhone.replace(/\D/g, ""));
++      }
+ 
+       if (savedRideId) {
+         fetchRideById(savedRideId);
+@@ -42,8 +69,9 @@ export default function PassengerHome() {
+       .maybeSingle();
+ 
+     if (data) {
+-      if (data.status === "cancelled") {
++      if (data.status === "cancelled" || data.status === "completed") {
+         localStorage.removeItem("active_ride_id");
++        setActiveRide(data.status === "completed" ? data : null);
+         return;
+       }
+       setActiveRide(data);
+@@ -54,10 +82,12 @@ export default function PassengerHome() {
+ 
+   // جلب آخر مشوار برقم الهاتف في حال عدم وجود ID مخزن
+   const checkExistingRideByPhone = async (phone: string) => {
++    const normalized = normalizeSudanesePhone(phone);
++    if (!normalized) return;
+     const { data } = await supabase
+       .from("rides")
+       .select("*")
+-      .eq("phone_number", phone)
++      .eq("phone_number", normalized)
+       .order("created_at", { ascending: false })
+       .limit(1)
+       .maybeSingle();
+@@ -84,6 +114,10 @@ export default function PassengerHome() {
+         },
+         (payload) => {
+           const updatedRide = payload.new;
++          // عند الإلغاء من جهة أخرى (أو الإكمال) ننظّف التخزين
++          if (updatedRide.status === "cancelled") {
++            localStorage.removeItem("active_ride_id");
++          }
+           setActiveRide(updatedRide);
+         }
+       )
+@@ -94,21 +128,95 @@ export default function PassengerHome() {
+     };
+   }, [activeRide?.id]);
+ 
++  // 3. عدّاد مهلة البحث: يشتغل فقط والمشوار pending
++  useEffect(() => {
++    if (activeRide?.status !== "pending" || !activeRide?.id) {
++      clearSearchTimer();
++      setSearchSecondsLeft(SEARCH_TIMEOUT_SECONDS);
++      setSearchTimedOut(false);
++      return;
++    }
++
++    setSearchSecondsLeft(SEARCH_TIMEOUT_SECONDS);
++    setSearchTimedOut(false);
++
++    timerRef.current = setInterval(() => {
++      setSearchSecondsLeft((prev) => {
++        if (prev <= 1) {
++          if (timerRef.current) clearInterval(timerRef.current);
++          timerRef.current = null;
++          setSearchTimedOut(true);
++          return 0;
++        }
++        return prev - 1;
++      });
++    }, 1000);
++
++    return clearSearchTimer;
++  }, [activeRide?.id, activeRide?.status, clearSearchTimer]);
++
++  // تنظيف العداد عند مغادرة الصفحة
++  useEffect(() => clearSearchTimer, [clearSearchTimer]);
++
++  /** رفع السعر المقترح 20% (مع إعادة تشغيل مهلة البحث) */
++  const handleRaisePrice = async () => {
++    if (!activeRide || activeRide.status !== "pending") return;
++    const current = Number(activeRide.offered_price);
++    if (!Number.isFinite(current) || current <= 0) {
++      alert("حدّد سعراً مقترحاً أولاً في نموذج الطلب لتتمكن من زيادته");
++      return;
++    }
++
++    const newPrice = Math.round(current * (1 + PRICE_RAISE_RATIO));
++    const { error } = await supabase
++      .from("rides")
++      .update({ offered_price: newPrice })
++      .eq("id", activeRide.id);
++
++    if (error) {
++      alert("تعذر رفع السعر دلوقتي — حاول مرة أخرى");
++      return;
++    }
++
++    setActiveRide((prev: any) =>
++      prev ? { ...prev, offered_price: newPrice } : prev
++    );
++    setSearchSecondsLeft(SEARCH_TIMEOUT_SECONDS);
++    setSearchTimedOut(false);
++    alert(`تم رفع السعر المقترح إلى ${formatPrice(newPrice)} ج.س`);
++  };
++
+   const handleCreateRide = async (e: React.FormEvent) => {
+     e.preventDefault();
+-    let val = phoneNumber.replace(/\D/g, "");
+-    if (val.startsWith("0")) val = val.slice(1);
+ 
+-    if (val.length < 9) {
+-      alert("الرجاء إدخال رقم هاتف سوداني صحيح (9 أرقام)");
++    // تنظيف المدخلات النصية
++    const cleanName = passengerName.trim().replace(/\s+/g, " ");
++    const cleanPickup = pickupLocation.trim();
++    const cleanDestination = destination.trim();
++    if (!cleanName || !cleanPickup || !cleanDestination) {
++      alert("فضلاً املأ الاسم ومكان التحرك والوجهة");
++      return;
++    }
++
++    // تحقق أدق من رقم الهاتف السوداني (يقبل 0912345678 / 912345678 / +249912345678)
++    const fullPhone = normalizeSudanesePhone(phoneNumber);
++    if (!fullPhone) {
++      alert(
++        "رقم الهاتف غير صحيح — أدخل 9 أرقام سودانية تبدأ بـ 9 (مثال: 0912345678)"
++      );
++      return;
++    }
++
++    const numericPrice = offeredPrice.trim() === "" ? null : Number(offeredPrice);
++    if (numericPrice !== null && (!Number.isFinite(numericPrice) || numericPrice < 0)) {
++      alert("السعر المقترح غير صحيح — أدخل مبلغاً موجباً أو اتركه فارغاً");
+       return;
+     }
+ 
+-    const fullPhone = `+249${val}`;
+     setLoading(true);
+ 
+     if (typeof window !== "undefined") {
+-      localStorage.setItem("passenger_name", passengerName);
++      localStorage.setItem("passenger_name", cleanName);
+       localStorage.setItem("passenger_phone", fullPhone);
+     }
+ 
+@@ -116,11 +224,11 @@ export default function PassengerHome() {
+       .from("rides")
+       .insert([
+         {
+-          passenger_name: passengerName,
++          passenger_name: cleanName,
+           phone_number: fullPhone,
+-          pickup_location: pickupLocation,
+-          destination: destination,
+-          offered_price: offeredPrice ? parseFloat(offeredPrice) : null,
++          pickup_location: cleanPickup,
++          destination: cleanDestination,
++          offered_price: numericPrice,
+           service_type: serviceType,
+           status: "pending",
+         },
+@@ -142,7 +250,7 @@ export default function PassengerHome() {
+   const handleStartNewRide = async () => {
+     if (!activeRide) return;
+ 
+-    if (activeRide.status === "pending") {
++    if (activeRide.status === "pending" || activeRide.status === "accepted") {
+       const ok = window.confirm("متأكد إنك تبي تلغي المشوار؟");
+       if (!ok) return;
+ 
+@@ -159,12 +267,15 @@ export default function PassengerHome() {
+ 
+     localStorage.removeItem("active_ride_id");
+     setActiveRide(null);
++    setSearchSecondsLeft(SEARCH_TIMEOUT_SECONDS);
++    setSearchTimedOut(false);
+   };
+ 
++  const formattedPrice = formatPrice(activeRide?.offered_price);
++
+   return (
+     <div className="min-h-screen bg-[#161b22] text-slate-100 p-4 flex flex-col justify-between w-full min-w-full">
+       <div className="w-full max-w-xl mx-auto flex-1 flex flex-col justify-between space-y-5">
+-        
+         {/* الشريط العلوي */}
+         <header className="flex justify-between items-center pt-2 pb-1">
+           <div className="flex items-center gap-2">
+@@ -202,6 +313,7 @@ export default function PassengerHome() {
+                 <input
+                   type="text"
+                   required
++                  maxLength={50}
+                   value={passengerName}
+                   onChange={(e) => setPassengerName(e.target.value)}
+                   placeholder="اسمك الكريم"
+@@ -225,7 +337,7 @@ export default function PassengerHome() {
+ 
+             <div>
+               <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">📞 رقم الهاتف:</label>
+-              <div 
++              <div
+                 className="flex items-stretch border border-slate-700 rounded-xl overflow-hidden bg-[#0d1117] focus-within:border-amber-500"
+                 style={{ direction: 'ltr' }}
+               >
+@@ -237,8 +349,10 @@ export default function PassengerHome() {
+                 <input
+                   type="tel"
+                   required
+-                  value={phoneNumber.replace("+249", "")}
+-                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
++                  inputMode="numeric"
++                  maxLength={10}
++                  value={phoneNumber}
++                  onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                   placeholder="9XXXXXXXX"
+                   className="w-full bg-transparent px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-left"
+                   style={{ direction: 'ltr' }}
+@@ -252,6 +366,7 @@ export default function PassengerHome() {
+                 <input
+                   type="text"
+                   required
++                  maxLength={200}
+                   value={pickupLocation}
+                   onChange={(e) => setPickupLocation(e.target.value)}
+                   placeholder="دوس على الخريطة أو اكتب المكان"
+@@ -264,6 +379,7 @@ export default function PassengerHome() {
+                 <input
+                   type="text"
+                   required
++                  maxLength={200}
+                   value={destination}
+                   onChange={(e) => setDestination(e.target.value)}
+                   placeholder="مثال: حي المطار"
+@@ -276,6 +392,8 @@ export default function PassengerHome() {
+               <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">💰 السعر المقترح (ج.س):</label>
+               <input
+                 type="number"
++                min={0}
++                inputMode="decimal"
+                 value={offeredPrice}
+                 onChange={(e) => setOfferedPrice(e.target.value)}
+                 placeholder="أدخل المبلغ المقترح"
+@@ -294,10 +412,38 @@ export default function PassengerHome() {
+         ) : (
+           <div className="bg-[#0d1117] border border-slate-700 rounded-2xl p-5 space-y-4 my-auto shadow-2xl">
+             {activeRide.status === "pending" ? (
+-              <div className="text-center space-y-2">
++              <div className="text-center space-y-3">
+                 <span className="text-3xl animate-bounce inline-block">⏳</span>
+                 <h3 className="text-base font-bold text-amber-400">جاري البحث عن سائق...</h3>
+                 <p className="text-xs text-slate-400">تم نشر مشوارك للسائقين القريبين منك، يرجى الانتظار</p>
++
++                {/* عدّاد مهلة البحث */}
++                <div
++                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold border ${
++                    searchTimedOut
++                      ? "bg-red-500/10 text-red-400 border-red-500/30"
++                      : "bg-slate-800/60 text-slate-300 border-slate-700"
++                  }`}
++                >
++                  ⏱️ {searchTimedOut ? "انتهت المهلة" : `المتبقي ${formatCountdown(searchSecondsLeft)}`}
++                </div>
++
++                {searchTimedOut && (
++                  <div className="bg-amber-500/10 border border-amber-500/25 rounded-xl p-3 text-xs text-amber-200 leading-relaxed">
++                    لسه ما في سائق قبِل مشوارك. تقدر تزوّد السعر المقترح ٢٠٪
++                    عشان تجذب سائق أسرع، أو تلغي الطلب.
++                  </div>
++                )}
++
++                <button
++                  type="button"
++                  onClick={handleRaisePrice}
++                  disabled={loading}
++                  className="w-full py-3 bg-amber-500/15 hover:bg-amber-500/25 active:scale-[0.99] text-amber-400 border border-amber-500/30 font-extrabold text-xs rounded-xl transition disabled:opacity-50"
++                >
++                  🔥 زوّد السعر ٢٠٪
++                  {formattedPrice ? ` (يصير ${formatPrice(Math.round(Number(activeRide.offered_price) * 1.2))} ج.س)` : ""}
++                </button>
+               </div>
+             ) : activeRide.status === "accepted" ? (
+               <div className="text-center space-y-2">
+@@ -333,7 +479,9 @@ export default function PassengerHome() {
+             <div className="text-xs space-y-2 border-t border-b border-slate-800 py-3 text-slate-300">
+               <div>📍 <strong>من:</strong> {activeRide.pickup_location}</div>
+               <div>🏁 <strong>إلى:</strong> {activeRide.destination}</div>
+-              {activeRide.offered_price && <div>💰 <strong>السعر:</strong> {activeRide.offered_price} ج.س</div>}
++              {formattedPrice && (
++                <div>💰 <strong>السعر:</strong> <span className="font-mono font-bold text-amber-400">{formattedPrice} ج.س</span></div>
++              )}
+             </div>
+ 
+             <button
+@@ -348,7 +496,6 @@ export default function PassengerHome() {
+             </button>
+           </div>
+         )}
+-
+       </div>
+     </div>
+   );
+diff --git a/src/components/AdminGate.tsx b/src/components/AdminGate.tsx
+new file mode 100644
+index 0000000..05bece1
+--- /dev/null
++++ b/src/components/AdminGate.tsx
+@@ -0,0 +1,116 @@
++"use client";
++
++import { useEffect, useState, type ReactNode, type FormEvent } from "react";
++
++/** مفتاح التخزين المحلي لرمز الإدارة */
++export const ADMIN_TOKEN_KEY = "rakshtak_admin_token";
++
++export function getAdminToken(): string | null {
++  if (typeof window === "undefined") return null;
++  try {
++    return window.sessionStorage.getItem(ADMIN_TOKEN_KEY);
++  } catch {
++    return null;
++  }
++}
++
++export function setAdminToken(token: string): void {
++  try {
++    window.sessionStorage.setItem(ADMIN_TOKEN_KEY, token.trim());
++  } catch {
++    /* التخزين غير متاح */
++  }
++}
++
++export function clearAdminToken(): void {
++  try {
++    window.sessionStorage.removeItem(ADMIN_TOKEN_KEY);
++  } catch {
++    /* تجاهل */
++  }
++}
++
++/**
++ * بوابة إدارية لصفحتَي /admin و /dashboard:
++ * تطلب رمز RAKSHTAK_ADMIN_TOKEN قبل عرض أي محتوى، وتخزّنه في sessionStorage
++ * (يختفي بمجرد إغلاق التبويب). المسارات الخادمية تتحقق من الرمز نفسها
++ * وترجع 403 لأي طلب بدون x-admin-token صحيح.
++ */
++export default function AdminGate({
++  children,
++  title = "بوابة الإدارة",
++}: {
++  children: ReactNode;
++  title?: string;
++}) {
++  const [token, setToken] = useState<string | null>(null);
++  const [input, setInput] = useState("");
++  const [ready, setReady] = useState(false);
++
++  useEffect(() => {
++    setToken(getAdminToken());
++    setReady(true);
++  }, []);
++
++  const submit = (e: FormEvent) => {
++    e.preventDefault();
++    const value = input.trim();
++    if (!value) return;
++    setAdminToken(value);
++    setToken(value);
++  };
++
++  // تجنّب وميض أثناء التحميل (لا نقرأ sessionStorage في أول render للخادم)
++  if (!ready) {
++    return (
++      <div className="min-h-screen bg-[#0d1117] flex items-center justify-center">
++        <div className="text-slate-500 text-sm">جاري التحميل...</div>
++      </div>
++    );
++  }
++
++  if (token) {
++    return <>{children}</>;
++  }
++
++  return (
++    <div className="min-h-screen bg-[#0d1117] text-slate-100 flex items-center justify-center p-4">
++      <form
++        onSubmit={submit}
++        className="w-full max-w-sm bg-[#161b22] border border-slate-800 rounded-3xl p-6 space-y-4 shadow-2xl"
++      >
++        <div className="text-center space-y-1.5">
++          <div className="text-4xl">🔐</div>
++          <h1 className="text-lg font-extrabold text-white">{title}</h1>
++          <p className="text-xs text-slate-400 leading-relaxed">
++            هذه الصفحة إدارية ومقفولة. أدخل رمز الإدارة
++            (RAKSHTAK_ADMIN_TOKEN) للمتابعة.
++          </p>
++        </div>
++
++        <input
++          type="password"
++          autoFocus
++          required
++          value={input}
++          onChange={(e) => setInput(e.target.value)}
++          placeholder="رمز الإدارة"
++          className="w-full bg-[#0d1117] border border-slate-700 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono text-left"
++          dir="ltr"
++        />
++
++        <button
++          type="submit"
++          className="w-full py-3 bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 font-extrabold rounded-xl text-sm shadow-lg transition"
++        >
++          دخول الإدارة 🚀
++        </button>
++
++        <p className="text-[10px] text-slate-500 text-center leading-relaxed">
++          بدون ضبط RAKSHTAK_ADMIN_TOKEN على الخادم تبقى كل مسارات /api
++          الإدارية مقفولة (403) — هذا هو الوضع الآمن المتعمّد.
++        </p>
++      </form>
++    </div>
++  );
++}
+diff --git a/src/db/index.ts b/src/db/index.ts
+index 5b1db6a..ce2aefc 100644
+--- a/src/db/index.ts
++++ b/src/db/index.ts
+@@ -2,5 +2,33 @@ import { drizzle } from "drizzle-orm/neon-http";
+ import { neon } from "@neondatabase/serverless";
+ import * as schema from "./schema";
+ 
+-const sql = neon(process.env.DATABASE_URL!);
+-export const db = drizzle(sql, { schema });
++/**
++ * اتصال كسول (Lazy) بقاعدة بيانات Neon:
++ * لا يُنشأ الاتصال عند استيراد الملف، بل فقط عند أول استعلام فعلي.
++ * هذا يضمن أن مسارات /api تبقى قادرة على الرد بـ 403/503 (الحماية أولاً)
++ * حتى لو كانت DATABASE_URL غير مضبوطة على الخادم.
++ */
++function createDb() {
++  const connectionString = process.env.DATABASE_URL;
++  if (!connectionString) {
++    throw new Error("DATABASE_URL غير مضبوط — قاعدة بيانات Neon غير متصلة.");
++  }
++  return drizzle(neon(connectionString), { schema });
++}
++
++let cachedDb: ReturnType<typeof createDb> | null = null;
++
++function getDb(): ReturnType<typeof createDb> {
++  if (!cachedDb) cachedDb = createDb();
++  return cachedDb;
++}
++
++/**
++ * db تُستخدم كما كانت (db.select()...)، لكن أول لمسة حقيقية لها
++ * تمر عبر getDb() — أي أن الاستيراد وحده لا يكسر الطلب أبداً.
++ */
++export const db = new Proxy({} as ReturnType<typeof createDb>, {
++  get(_target, prop, receiver) {
++    return Reflect.get(getDb(), prop, receiver);
++  },
++});
+diff --git a/src/lib/admin.ts b/src/lib/admin.ts
+new file mode 100644
+index 0000000..605e734
+--- /dev/null
++++ b/src/lib/admin.ts
+@@ -0,0 +1,53 @@
++import { NextRequest, NextResponse } from "next/server";
++
++/**
++ * الترويسة التي يحملها أي طلب إداري:
++ *   x-admin-token: <قيمة RAKSHTAK_ADMIN_TOKEN>
++ * (يقبل أيضاً Authorization: Bearer <الرمز>)
++ */
++export const ADMIN_TOKEN_HEADER = "x-admin-token";
++
++/** مقارنة ثابتة الزمن (تجنّب هجمات التوقيت) */
++export function safeEqual(a: string, b: string): boolean {
++  if (a.length !== b.length) return false;
++  let diff = 0;
++  for (let i = 0; i < a.length; i++) {
++    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
++  }
++  return diff === 0;
++}
++
++/**
++ * بوابة الحماية لكل المسارات الإدارية:
++ * - بدون إعداد RAKSHTAK_ADMIN_TOKEN على الخادم ← ممنوع (403) (الوضع الآمن المتعمّد)
++ * - بترويسة خاطئة أو ناقصة ← ممنوع (403)
++ */
++export function requireAdminToken(request: NextRequest): NextResponse | null {
++  const expected = process.env.RAKSHTAK_ADMIN_TOKEN || "";
++  if (!expected) {
++    return NextResponse.json(
++      {
++        error:
++          "الإدارة مقفولة: RAKSHTAK_ADMIN_TOKEN غير مضبوط على الخادم (أضفه في Vercel ثم أعد النشر).",
++      },
++      { status: 403 }
++    );
++  }
++
++  const bearer = request.headers.get("authorization") || "";
++  const provided =
++    request.headers.get(ADMIN_TOKEN_HEADER) ||
++    (bearer.startsWith("Bearer ") ? bearer.slice(7) : "") ||
++    "";
++
++  if (!provided || !safeEqual(provided, expected)) {
++    return NextResponse.json(
++      {
++        error: "غير مصرح: أضف ترويسة x-admin-token بقيمة RAKSHTAK_ADMIN_TOKEN الصحيحة.",
++      },
++      { status: 403 }
++    );
++  }
++
++  return null;
++}
+diff --git a/src/lib/format.ts b/src/lib/format.ts
+new file mode 100644
+index 0000000..5b8fb3f
+--- /dev/null
++++ b/src/lib/format.ts
+@@ -0,0 +1,51 @@
++/**
++ * أدوات تنسيق مشتركة (الهاتف السوداني + الأسعار + قناع الحساب البنكي)
++ */
++
++/**
++ * تطبيع رقم هاتف سوداني من أي صيغة إدخال شائعة:
++ *   0912345678 | 912345678 | +249912345678 | 00249912345678 | +249 91 234 5678
++ * يرجع الصيغة الموحدة "+2499XXXXXXXX" أو null إذا كان الرقم غير صالح (9 أرقام تبدأ بـ 9).
++ */
++export function normalizeSudanesePhone(raw: string): string | null {
++  let digits = (raw || "").replace(/\D/g, "");
++  if (!digits) return null;
++
++  // إزالة بادئات دولية: 00 ثم 249 ثم 0 محلي
++  if (digits.startsWith("00")) digits = digits.slice(2);
++  if (digits.startsWith("249")) digits = digits.slice(3);
++  if (digits.startsWith("0")) digits = digits.slice(1);
++
++  return /^9\d{8}$/.test(digits) ? `+249${digits}` : null;
++}
++
++/** تحقق سريع من أن النص رقم سوداني صحيح (نفس منطق التطبيع) */
++export function isValidSudanesePhone(raw: string): boolean {
++  return normalizeSudanesePhone(raw) !== null;
++}
++
++/** تنسيق مبلغ بفاصلات الآلاف — مثال: 1,500 ج.س */
++export function formatPrice(value: number | string | null | undefined): string {
++  if (value === null || value === undefined || value === "") return "";
++  const n = Number(value);
++  if (!Number.isFinite(n) || n < 0) return "";
++  return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
++}
++
++/**
++ * قناع رقم الحساب البنكي: يُظهر آخر 4 أرقام فقط.
++ * مثال: 1234567890 ← ••••••7890
++ */
++export function maskAccount(account: string | null | undefined): string {
++  const digits = (account || "").replace(/\s+/g, "");
++  if (!digits) return "";
++  if (digits.length <= 4) return "••••";
++  return `••••••${digits.slice(-4)}`;
++}
++
++/** صيغة mm:ss للعدّاد */
++export function formatCountdown(totalSeconds: number): string {
++  const m = Math.floor(totalSeconds / 60);
++  const s = totalSeconds % 60;
++  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
++}
+diff --git a/tsconfig.json b/tsconfig.json
+index c133409..76324d9 100644
+--- a/tsconfig.json
++++ b/tsconfig.json
+@@ -23,5 +23,5 @@
+     }
+   },
+   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+-  "exclude": ["node_modules"]
++  "exclude": ["node_modules", "drizzle.config.ts"]
+ }
