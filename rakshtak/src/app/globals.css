@@ -2,22 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== خريطة Leaflet بثيم ركشتك الداكن ===== */
+/* ===== ثيم ركشتك الأزرق المتدرج (خلفيات التطبيق) ===== */
+.rk-bg-gradient {
+  background: linear-gradient(180deg, #050b1a 0%, #0a1830 55%, #102a52 100%);
+}
+.rk-card {
+  background: #0b1a33;
+}
+.rk-card-light {
+  background: #122747;
+}
+
+/* ===== خريطة Leaflet بثيم ركشتك الأزرق الداكن ===== */
 .leaflet-container {
-  background: #0a0d13;
+  background: #08132a;
   font-family: inherit;
   direction: ltr;
 }
 .leaflet-bar a {
-  background: #12161f !important;
+  background: #12294d !important;
   color: #f5a70a !important;
-  border-color: #2a3344 !important;
+  border-color: #26375f !important;
 }
 .leaflet-bar a:hover {
-  background: #1b2130 !important;
+  background: #1a2c52 !important;
 }
 .leaflet-control-attribution {
-  background: rgba(10, 13, 19, 0.75) !important;
+  background: rgba(8, 19, 42, 0.75) !important;
   color: #8b98ab !important;
   font-size: 9px !important;
   padding: 1px 5px !important;

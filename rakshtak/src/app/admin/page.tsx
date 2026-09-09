@@ -170,7 +170,7 @@ function AdminContent() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0d1117] text-slate-100 p-4 flex flex-col justify-between w-full min-w-full">
+    <div className="min-h-screen bg-gradient-to-b from-[#050b1a] via-[#0a1830] to-[#102a52] text-slate-100 p-4 flex flex-col justify-between w-full min-w-full">
       <div className="w-full max-w-3xl mx-auto flex-1 flex flex-col justify-between space-y-4">
         <header className="flex justify-between items-center pt-2 pb-1">
           <div className="flex items-center gap-2">
@@ -180,7 +180,7 @@ function AdminContent() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => { void fetchAllRides(); }}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] px-3 py-2 rounded-xl border border-slate-700 transition"
+              className="bg-[#122747] hover:bg-[#1a3564] text-slate-300 font-bold text-[11px] px-3 py-2 rounded-xl border border-blue-900/60 transition"
             >
               تحديث 🔄
             </button>
@@ -206,7 +206,7 @@ function AdminContent() {
 
         {/* إحصائيات */}
         <div className="grid grid-cols-5 gap-2">
-          {statCard("الكل", stats?.total, "bg-slate-800/60 border border-slate-700")}
+          {statCard("الكل", stats?.total, "bg-[#122747]/60 border border-blue-900/60")}
           {statCard("⏳ قيد البحث", stats?.pending, "bg-amber-500/10 border border-amber-500/20 text-amber-400")}
           {statCard("🟢 جاري", stats?.accepted, "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400")}
           {statCard("🏁 مكتملة", stats?.completed, "bg-blue-500/10 border border-blue-500/20 text-blue-400")}
@@ -218,7 +218,7 @@ function AdminContent() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="bg-[#161b22] border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+            className="bg-[#0f2347] border border-blue-900/60 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
           >
             <option value="all">كل الحالات</option>
             <option value="pending">⏳ قيد البحث</option>
@@ -235,7 +235,7 @@ function AdminContent() {
         {loading ? (
           <div className="text-center py-10 text-slate-500 text-sm animate-pulse">جاري التحميل...</div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-10 bg-[#161b22] border border-slate-800 rounded-2xl text-slate-500 text-xs font-medium">
+          <div className="text-center py-10 bg-[#0f2347] border border-blue-950/70 rounded-2xl text-slate-500 text-xs font-medium">
             لا توجد رحلات{statusFilter !== "all" ? " بهذه الحالة" : ""} حالياً.
           </div>
         ) : (
@@ -245,7 +245,7 @@ function AdminContent() {
               const meta = STATUS_META[status] || STATUS_META.pending;
               const price = formatPrice(ride.offered_price);
               return (
-                <div key={ride.id} className="bg-[#161b22] border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
+                <div key={ride.id} className="bg-[#0f2347] border border-blue-950/70 rounded-2xl p-3.5 space-y-2.5">
                   <div className="flex flex-wrap justify-between items-center gap-2 text-xs">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-slate-500 font-mono text-[10px]">#{ride.id}</span>
@@ -306,7 +306,7 @@ function AdminContent() {
                     )}
                     <button
                       onClick={() => deleteRide(ride.id)}
-                      className={`py-2 ${ride.status === "accepted" ? "flex-1" : "flex-1"} bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700 rounded-lg font-bold text-[10px] transition`}
+                      className={`py-2 ${ride.status === "accepted" ? "flex-1" : "flex-1"} bg-[#122747] hover:bg-[#1a3564] text-slate-400 border border-blue-900/60 rounded-lg font-bold text-[10px] transition`}
                     >
                       🗑️ حذف نهائي
                     </button>
@@ -318,7 +318,7 @@ function AdminContent() {
         )}
 
         {/* دليل تشغيل SQL */}
-        <details className="bg-[#0d1117] border border-slate-800 rounded-2xl">
+        <details className="bg-[#0b1830] border border-blue-950/70 rounded-2xl">
           <summary className="cursor-pointer px-4 py-3 text-xs font-bold text-slate-300 hover:text-amber-400 transition select-none">
             🗄️ دليل تشغيل قاعدة البيانات (اضغط للنسخ — مطلوب مرة واحدة على Supabase)
           </summary>
@@ -335,7 +335,7 @@ function AdminContent() {
                 value={RUNBOOK_SQL}
                 rows={4}
                 onFocus={(e) => e.currentTarget.select()}
-                className="flex-1 bg-[#161b22] border border-slate-800 rounded-xl p-2.5 text-[10px] font-mono text-emerald-300/90 leading-relaxed resize-y focus:outline-none"
+                className="flex-1 bg-[#0f2347] border border-blue-950/70 rounded-xl p-2.5 text-[10px] font-mono text-emerald-300/90 leading-relaxed resize-y focus:outline-none"
                 dir="ltr"
               />
               <button
