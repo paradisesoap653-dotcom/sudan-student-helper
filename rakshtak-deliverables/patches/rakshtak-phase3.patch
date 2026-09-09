@@ -1,0 +1,3260 @@
+diff --git a/.env.example b/.env.example
+index fb87629..7b18aa5 100644
+--- a/.env.example
++++ b/.env.example
+@@ -1,4 +1,4 @@
+-# ====== المتغيرات الخاصة بمشروع ركشتك — المرحلة 2 ======
++# ====== المتغيرات الخاصة بمشروع ركشتك — المرحلة 3 ======
+ # انسخ هذا الملف إلى .env.local وأدخل القيم الحقيقية — لا ترفع .env.local إلى Git أبداً.
+ 
+ # ── بوابة الإدارة (أضِفه في Vercel أيضاً ثم أعد النشر) ──
+@@ -6,12 +6,12 @@
+ # بدونه تبقى /admin مقفولة (403) — وضع آمن متعمّد.
+ RAKSHTAK_ADMIN_TOKEN=
+ 
+-# ── Supabase (قاعدة البيانات الموحّدة — التطبيق كله) ──
++# ── Supabase (قاعدة البيانات الموحّدة — الخادم فقط) ──
+ NEXT_PUBLIC_SUPABASE_URL=
+-NEXT_PUBLIC_SUPABASE_ANON_KEY=
+ 
+ # مفتاح الخادم (Service Role) — سري جداً: للخادم فقط، لا يصل للمتصفح أبداً.
+-# مطلوب لتوثيق السائقين (OTP) وإدارة جدولي drivers و otp_codes.
++# بعد المرحلة 3 (تفعيل RLS + منع anon) كل العمليات — الرحلات والسائقين وOTP —
++# تمر عبر مسارات الخادم بهذا المفتاح، وتم حذف مفتاح anon من الكود نهائياً.
+ # من Supabase: Project Settings → API → service_role (نسخته الأصلية فقط — تُعرض مرة واحدة).
+ SUPABASE_SERVICE_ROLE_KEY=
+ 
+diff --git a/README.md b/README.md
+index 74ecc77..91154e7 100644
+--- a/README.md
++++ b/README.md
+@@ -17,9 +17,8 @@ npm run dev
+ | المتغير | الوصف |
+ | --- | --- |
+ | `RAKSHTAK_ADMIN_TOKEN` | **بوابة الإدارة** — بدون قيمته تبقى `/admin` مقفولة (403) — ولّده بـ `openssl rand -hex 24` |
+-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase (التطبيق كله) |
+-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase (التطبيق كله) |
+-| `SUPABASE_SERVICE_ROLE_KEY` | مفتاح الخادم السري — لتوثيق السائقين (OTP) وجدولَي `drivers` و`otp_codes` |
++| `NEXT_PUBLIC_SUPABASE_URL` | Supabase (الخادم — يُستخدم في مسارات الـ API فقط) |
++| `SUPABASE_SERVICE_ROLE_KEY` | مفتاح الخادم السري — كل عمليات الرحلات والسائقين وOTP تمر به (بعد RLS لا يملك المتصفح أي مفتاح) |
+ | `RAKSHTAK_OTP_WEBHOOK_URL` | (اختياري) مزوّد إرسال رمز التحقق SMS/واتساب — يُستدعى POST `{phone, code}` |
+ 
+ ## الصفحات
+@@ -31,7 +30,11 @@ npm run dev
+ ## التفعيل (مرة واحدة بعد النشر)
+ 
+ 1. نفّذ ملف `supabase/phase2.sql` في **Supabase → SQL Editor** (ينشئ `drivers` و`otp_codes` ويضيف `driver_id` و`pickup_lat/lng` لجدول `rides`).
+-2. أضف المتغيرات أعلاه في **Vercel → Settings → Environment Variables** (Production + Preview) وأعد النشر.
+-3. اختبر `/api/driver/request-otp` — خارج الإنتاج وبدون webhook يُعاد الرمز كـ `previewCode` للتجربة فقط.
++2. نفّذ ملف `supabase/phase3.sql` بعدها (يضيف `rider_token` للرحلات ويفعّل RLS ويمنع `anon` من كل الجداول — من هذه اللحظة لا يلمس المتصفح قاعدة البيانات إطلاقاً وكل العمليات عبر مسارات الخادم).
++3. أضف المتغيرات أعلاه في **Vercel → Settings → Environment Variables** (Production + Preview) وأعد النشر.
++4. اختبر `/api/driver/request-otp` — خارج الإنتاج وبدون webhook يُعاد الرمز كـ `previewCode` للتجربة فقط.
+ 
+-التوثيق الكامل: [`PHASE2-NOTES.md`](./PHASE2-NOTES.md) (المرحلة 2) و[`HOTFIX-NOTES.md`](./HOTFIX-NOTES.md) (الإصلاح الأمني السابق).
++ملاحظة: بعد المرحلة 3 توقّف Supabase Realtime للمتصفح — الصفحات تعتمد على استطلاع دوري عبر مسارات الخادم
++(كل ٥ ثوانٍ في لوحة السائق / ٤ ثوانٍ في صفحة الراكب / ١٥ ثانية في لوحة الأدمن).
++
++التوثيق الكامل: [`PHASE3-NOTES.md`](./PHASE3-NOTES.md) (المرحلة 3) و[`PHASE2-NOTES.md`](./PHASE2-NOTES.md) و[`HOTFIX-NOTES.md`](./HOTFIX-NOTES.md).
+diff --git a/src/app/admin/page.tsx b/src/app/admin/page.tsx
+index 12d4265..4711bd9 100644
+--- a/src/app/admin/page.tsx
++++ b/src/app/admin/page.tsx
+@@ -1,25 +1,44 @@
+ "use client";
+ 
+-import { useState, useEffect } from "react";
+-import AdminGate, { clearAdminToken } from "@/components/AdminGate";
+-import { supabase } from "@/lib/supabase";
+-import { canonicalRideStatus, serviceTypeLabel, STATUS_META } from "@/lib/constants";
++import { useState, useEffect, useCallback, useRef } from "react";
++import AdminGate, { getAdminToken, clearAdminToken } from "@/components/AdminGate";
++import { canonicalRideStatus, serviceTypeLabel, STATUS_META, SERVICE_TYPES } from "@/lib/constants";
+ import { formatPrice } from "@/lib/format";
+ 
+-interface Ride {
+-  id: string;
+-  passenger_name: string;
+-  phone_number: string;
+-  pickup_location: string;
+-  destination: string;
+-  offered_price: number | null;
+-  service_type: string;
+-  status: "pending" | "accepted" | "completed" | "cancelled";
+-  driver_phone?: string;
++/** ترويسة الإدارة (مطابقة لـ src/lib/admin.ts على الخادم) */
++const ADMIN_TOKEN_HEADER = "x-admin-token";
++
++/* ════════════════════════════════════════════════════════════════════
++ * لوحة الإدارة — المرحلة 3:
++ * لا وصول مباشر لـ Supabase من المتصفح إطلاقاً — كل شيء عبر مسارات
++ * الخادم الحاملة لـ x-admin-token:
++ * GET  /api/admin/rides (آخر 100 رحلة + إحصائيات)
++ * DELETE /api/admin/rides/[id] (حذف)
++ * POST  /api/admin/rides/[id]/lock (إعادة فتح مشوار عالق للسائقين)
++ * (RLS + منع anon بعد تشغيل supabase/phase3.sql)
++ * ════════════════════════════════════════════════════════════════════ */
++
++interface AdminRide {
++  id: string | number;
++  passenger_name?: string;
++  phone_number?: string;
++  pickup_location?: string;
++  destination?: string;
++  offered_price?: number | null;
++  service_type?: string;
++  status?: string;
++  driver_phone?: string | null;
+   driver_id?: number | null;
+-  created_at?: string;
++  created_at?: string | null;
+ }
+ 
++const REFRESH_MS = 15000;
++
++/** نص SQL التشغيل (المرحلتان) — للنسخ إلى Supabase SQL Editor */
++const RUNBOOK_SQL = `-- 1) نفّذ supabase/phase2.sql مرة واحدة (الجداول + OTP + الأعمدة)
++-- 2) ثم نفّذ supabase/phase3.sql مرة واحدة (تفعيل RLS + rider_token + منع anon)
++-- (الملفان موجودان في مجلد supabase/ داخل المشروع)`;
++
+ export default function AdminDashboard() {
+   return (
+     <AdminGate title="بوابة لوحة تحكم الأدمن">
+@@ -29,175 +48,316 @@ export default function AdminDashboard() {
+ }
+ 
+ function AdminContent() {
+-  const [rides, setRides] = useState<Ride[]>([]);
++  const [rides, setRides] = useState<AdminRide[]>([]);
++  const [stats, setStats] = useState<{ total: number; pending: number; accepted: number; completed: number; cancelled: number } | null>(null);
+   const [loading, setLoading] = useState(true);
++  const [errorMsg, setErrorMsg] = useState<string | null>(null);
++  const [notice, setNotice] = useState<string | null>(null);
++  const [statusFilter, setStatusFilter] = useState<string>("all");
++  const [copied, setCopied] = useState(false);
++  const busylockRef = useRef<Set<string>>(new Set());
++
++  /** تنفيذ أي استدعاء خادم مع ترويسة الإدارة */
++  const backend = useCallback(async (path: string, opts: { method?: string; body?: unknown } = {}) => {
++    const headers: Record<string, string> = {};
++    const token = getAdminToken();
++    if (token) headers[ADMIN_TOKEN_HEADER] = token;
++    if (opts.body !== undefined) headers["Content-Type"] = "application/json";
++    const res = await fetch(path, {
++      method: opts.method || "GET",
++      headers,
++      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
++      cache: "no-store",
++    });
++    const data = await res.json().catch(() => ({}));
++    return { ok: res.ok && data.ok, status: res.status, data };
++  }, []);
+ 
+-  const fetchAllRides = async () => {
+-    setLoading(true);
+-    const { data, error } = await supabase
+-      .from("rides")
+-      .select("*")
+-      .order("created_at", { ascending: false });
+-
+-    if (!error && data) {
+-      // توحيد الحالات القديمة (searching/arrived) مع القيم الموحّدة
+-      setRides(
+-        data.map((row: any) => ({ ...row, status: canonicalRideStatus(row.status) }))
+-      );
++  const fetchAllRides = useCallback(async () => {
++    try {
++      const { ok, data } = await backend("/api/admin/rides");
++      if (ok) {
++        setRides((data.rides || []).map((r: any) => ({ ...r, status: canonicalRideStatus(r.status) })));
++        setStats(data.stats || null);
++        setErrorMsg(null);
++      } else {
++        setErrorMsg(data.error || "فشل جلب الرحلات");
++      }
++    } catch {
++      setErrorMsg("تعذر الاتصال بالخادم");
++    } finally {
++      setLoading(false);
+     }
+-    setLoading(false);
+-  };
++  }, [backend]);
+ 
++  // جلب فوري + استطلاع دوري (بديلاً عن realtime بعد RLS)
+   useEffect(() => {
+-    fetchAllRides();
+-
+-    const channel = supabase
+-      .channel("admin-rides-channel")
+-      .on(
+-        "postgres_changes",
+-        { event: "*", schema: "public", table: "rides" },
+-        () => {
+-          fetchAllRides();
+-        }
+-      )
+-      .subscribe();
+-
+-    return () => {
+-      supabase.removeChannel(channel);
+-    };
+-  }, []);
++    if (typeof window === "undefined" || !getAdminToken()) return;
++    void fetchAllRides();
++    const timer = setInterval(fetchAllRides, REFRESH_MS);
++    return () => clearInterval(timer);
++  }, [fetchAllRides]);
+ 
+-  const deleteRide = async (id: string) => {
+-    if (!confirm("هل أنت متأكد من حذف هذا الطلب؟")) return;
+-    const { error } = await supabase.from("rides").delete().eq("id", id);
+-    if (!error) {
+-      setRides((prev) => prev.filter((r) => r.id !== id));
+-    } else {
+-      alert("خطأ أثناء الحذف: " + error.message);
++  /** حذف رحلة (الإدارة فقط) */
++  const deleteRide = async (id: string | number) => {
++    if (!window.confirm(`متأكد من حذف الرحلة #${id} نهائياً؟ لا يمكن التراجع.`)) return;
++    const key = `del:${id}`;
++    if (busylockRef.current.has(key)) return;
++    busylockRef.current.add(key);
++    try {
++      const { ok, data } = await backend(`/api/admin/rides/${id}`, { method: "DELETE" });
++      if (ok) {
++        setNotice(`تم حذف الرحلة #${id} 🗑️`);
++        setRides((prev) => prev.filter((r) => String(r.id) !== String(id)));
++      } else {
++        setErrorMsg(data.error || "فشل الحذف");
++      }
++    } finally {
++      busylockRef.current.delete(key);
+     }
+   };
+ 
+-  const totalRides = rides.length;
+-  const pendingRides = rides.filter((r) => r.status === "pending").length;
+-  const acceptedRides = rides.filter((r) => r.status === "accepted").length;
+-  const completedRides = rides.filter((r) => r.status === "completed").length;
++  /** إلغاء رحلة (الإدارة) */
++  const cancelRide = async (id: string | number) => {
++    if (!window.confirm(`إلغاء الرحلة #${id}؟`)) return;
++    const key = `cancel:${id}`;
++    if (busylockRef.current.has(key)) return;
++    busylockRef.current.add(key);
++    try {
++      const { ok, data } = await backend(`/api/rides/${id}/cancel`, { method: "POST" });
++      if (ok) {
++        setNotice(`تم إلغاء الرحلة #${id} ✅`);
++        void fetchAllRides();
++      } else {
++        setErrorMsg(data.error || "فشل الإلغاء");
++      }
++    } finally {
++      busylockRef.current.delete(key);
++    }
++  };
+ 
+-  return (
+-    <div className="min-h-screen bg-[#0d1117] text-slate-100 p-3 pt-4 flex flex-col items-center justify-start">
+-      
+-      {/* شريط علوي */}
+-      <div className="w-full max-w-md flex justify-between items-center mb-4 px-1">
+-        <div className="flex items-center gap-2">
+-          <span className="text-xl">🛠️</span>
+-          <span className="font-bold text-base text-white">لوحة تحكم الأدمن</span>
+-        </div>
++  /** إعادة فتح مشوار عالق (accepted → pending) */
++  const unlockRide = async (id: string | number) => {
++    if (!window.confirm(`إعادة فتح الرحلة #${id} للسائقين؟ ستُحذف بيانات السائق الحالي.`)) return;
++    const key = `unlock:${id}`;
++    if (busylockRef.current.has(key)) return;
++    busylockRef.current.add(key);
++    try {
++      const { ok, data } = await backend(`/api/admin/rides/${id}/lock`, { method: "POST" });
++      if (ok) {
++        setNotice(`أعيد فتح الرحلة #${id} 🔓 تظهر الآن للطلبات المتاحة`);
++        void fetchAllRides();
++      } else {
++        setErrorMsg(data.error || "فشل إعادة الفتح");
++      }
++    } finally {
++      busylockRef.current.delete(key);
++    }
++  };
+ 
+-        <div className="flex items-center gap-2">
+-          <button
+-            type="button"
+-            onClick={() => { window.location.href = "/"; }}
+-            className="bg-amber-500/10 text-amber-400 font-bold text-xs px-3 py-1.5 rounded-xl border border-amber-500/30 transition cursor-pointer"
+-          >
+-            الرئيسية 🏠
+-          </button>
+-          <button
+-            type="button"
+-            onClick={() => { clearAdminToken(); window.location.reload(); }}
+-            className="bg-red-500/10 text-red-400 font-bold text-xs px-3 py-1.5 rounded-xl border border-red-500/30 transition cursor-pointer"
+-            title="إنهاء جلسة الإدارة"
+-          >
+-            🔒 خروج
+-          </button>
+-        </div>
+-      </div>
++  const logout = () => {
++    clearAdminToken();
++    window.location.href = "/";
++  };
+ 
+-      <div className="w-full max-w-md bg-[#161b22] border border-slate-800 rounded-3xl p-4 shadow-2xl space-y-4">
+-        
+-        {/* مربعات الإحصائيات */}
+-        <div className="grid grid-cols-2 gap-2 text-center">
+-          <div className="bg-[#0d1117] border border-slate-800 p-2.5 rounded-2xl">
+-            <div className="text-[10px] text-slate-400">إجمالي الطلبات</div>
+-            <div className="text-base font-bold text-white font-mono">{totalRides}</div>
+-          </div>
+-          <div className="bg-[#0d1117] border border-slate-800 p-2.5 rounded-2xl">
+-            <div className="text-[10px] text-amber-400">قيد الانتظار</div>
+-            <div className="text-base font-bold text-amber-400 font-mono">{pendingRides}</div>
+-          </div>
+-          <div className="bg-[#0d1117] border border-slate-800 p-2.5 rounded-2xl">
+-            <div className="text-[10px] text-emerald-400">جاري التنفيذ</div>
+-            <div className="text-base font-bold text-emerald-400 font-mono">{acceptedRides}</div>
++  const filtered = rides.filter((r) => (statusFilter === "all" ? true : r.status === statusFilter));
++
++  const statCard = (label: string, value: number | undefined, cls: string) => (
++    <div className={`rounded-2xl px-3 py-3 text-center ${cls}`}>
++      <div className="text-2xl font-extrabold">{value ?? 0}</div>
++      <div className="text-[10px] font-semibold mt-0.5 opacity-80">{label}</div>
++    </div>
++  );
++
++  return (
++    <div className="min-h-screen bg-[#0d1117] text-slate-100 p-4 flex flex-col justify-between w-full min-w-full">
++      <div className="w-full max-w-3xl mx-auto flex-1 flex flex-col justify-between space-y-4">
++        <header className="flex justify-between items-center pt-2 pb-1">
++          <div className="flex items-center gap-2">
++            <span className="text-2xl">🛠️</span>
++            <span className="font-extrabold text-xl text-white tracking-wide">لوحة تحكم الإدارة</span>
+           </div>
+-          <div className="bg-[#0d1117] border border-slate-800 p-2.5 rounded-2xl">
+-            <div className="text-[10px] text-blue-400">المكتملة</div>
+-            <div className="text-base font-bold text-blue-400 font-mono">{completedRides}</div>
++          <div className="flex items-center gap-2">
++            <button
++              onClick={() => { void fetchAllRides(); }}
++              className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[11px] px-3 py-2 rounded-xl border border-slate-700 transition"
++            >
++              تحديث 🔄
++            </button>
++            <button
++              onClick={logout}
++              className="bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-[11px] px-3 py-2 rounded-xl border border-red-500/25 transition"
++            >
++              خروج 🔒
++            </button>
+           </div>
++        </header>
++
++        {notice && (
++          <p className="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2">
++            ✅ {notice}
++          </p>
++        )}
++        {errorMsg && (
++          <p className="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 leading-relaxed">
++            ⚠️ {errorMsg}
++          </p>
++        )}
++
++        {/* إحصائيات */}
++        <div className="grid grid-cols-5 gap-2">
++          {statCard("الكل", stats?.total, "bg-slate-800/60 border border-slate-700")}
++          {statCard("⏳ قيد البحث", stats?.pending, "bg-amber-500/10 border border-amber-500/20 text-amber-400")}
++          {statCard("🟢 جاري", stats?.accepted, "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400")}
++          {statCard("🏁 مكتملة", stats?.completed, "bg-blue-500/10 border border-blue-500/20 text-blue-400")}
++          {statCard("❌ ملغاة", stats?.cancelled, "bg-red-500/10 border border-red-500/20 text-red-400")}
+         </div>
+ 
+-        <div className="flex justify-between items-center pt-2 border-t border-slate-800">
+-          <h3 className="text-xs font-bold text-slate-300">سجل الطلبات الحية:</h3>
+-          <button
+-            type="button"
+-            onClick={fetchAllRides}
+-            className="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded-lg transition"
++        {/* فلترة الحالة */}
++        <div className="flex items-center justify-between gap-2">
++          <select
++            value={statusFilter}
++            onChange={(e) => setStatusFilter(e.target.value)}
++            className="bg-[#161b22] border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
+           >
+-            تحديث 🔄
+-          </button>
++            <option value="all">كل الحالات</option>
++            <option value="pending">⏳ قيد البحث</option>
++            <option value="accepted">🟢 جاري التنفيذ</option>
++            <option value="completed">🏁 مكتملة</option>
++            <option value="cancelled">❌ ملغاة</option>
++          </select>
++          <span className="text-[11px] text-slate-500">
++            آخر {rides.length} رحلة — تحديث تلقائي كل {Math.round(REFRESH_MS / 1000)} ثانية
++          </span>
+         </div>
+ 
+-        {/* قائمة الطلبات */}
+-        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+-          {loading ? (
+-            <div className="text-center py-8 text-xs text-slate-500">جاري تحميل البيانات...</div>
+-          ) : rides.length === 0 ? (
+-            <div className="text-center py-8 text-xs text-slate-500">لا توجد طلبات مسجلة حتى الآن.</div>
+-          ) : (
+-            rides.map((ride) => (
+-              <div key={ride.id} className="bg-[#0d1117] border border-slate-800 rounded-2xl p-3 space-y-2 text-xs">
+-                <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+-                  <span className="font-bold text-white">👤 {ride.passenger_name}</span>
+-                  <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold ${STATUS_META[ride.status]?.className || STATUS_META.pending.className}`}>
+-                    {STATUS_META[ride.status]?.label || STATUS_META.pending.label}
+-                  </span>
+-                </div>
+-
+-                <div className="space-y-1 text-slate-300">
+-                  <div>الخدمة: <span className="text-amber-400 font-bold">{serviceTypeLabel(ride.service_type)}</span></div>
+-                  <div>📍 من: <span className="text-white">{ride.pickup_location}</span></div>
+-                  <div>🏁 إلى: <span className="text-white">{ride.destination}</span></div>
+-                  {ride.offered_price ? (
+-                    <div className="text-amber-400 font-mono">💰 السعر: {formatPrice(ride.offered_price)} ج.س</div>
+-                  ) : null}
+-                  <div className="flex justify-between text-slate-400">
+-                    <span>📞 الراكب:</span>
+-                    <a href={`tel:${ride.phone_number}`} className="font-mono text-amber-400 font-bold" style={{ direction: 'ltr' }}>
+-                      {ride.phone_number}
+-                    </a>
+-                  </div>
+-                  {(ride.driver_phone || ride.driver_id) && (
+-                    <div className="flex justify-between text-slate-400">
+-                      <span>🚕 السائق:</span>
+-                      <span className="font-mono text-emerald-400 font-bold" style={{ direction: 'ltr' }}>
+-                        {ride.driver_phone || `#${ride.driver_id}`}
+-                        {ride.driver_id ? ` (مُعرّف ${ride.driver_id})` : ""}
++        {/* جدول الرحلات */}
++        {loading ? (
++          <div className="text-center py-10 text-slate-500 text-sm animate-pulse">جاري التحميل...</div>
++        ) : filtered.length === 0 ? (
++          <div className="text-center py-10 bg-[#161b22] border border-slate-800 rounded-2xl text-slate-500 text-xs font-medium">
++            لا توجد رحلات{statusFilter !== "all" ? " بهذه الحالة" : ""} حالياً.
++          </div>
++        ) : (
++          <div className="space-y-2.5">
++            {filtered.map((ride) => {
++              const status = ride.status as keyof typeof STATUS_META;
++              const meta = STATUS_META[status] || STATUS_META.pending;
++              const price = formatPrice(ride.offered_price);
++              return (
++                <div key={ride.id} className="bg-[#161b22] border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
++                  <div className="flex flex-wrap justify-between items-center gap-2 text-xs">
++                    <div className="flex items-center gap-2 flex-wrap">
++                      <span className="text-slate-500 font-mono text-[10px]">#{ride.id}</span>
++                      <span className={`px-2 py-0.5 rounded-lg font-bold text-[10px] ${meta.className}`}>
++                        {meta.label}
++                      </span>
++                      <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-lg font-bold text-[10px]">
++                        {serviceTypeLabel(ride.service_type)}
+                       </span>
++                      {price && (
++                        <span className="font-mono font-bold text-emerald-400 text-[11px]">
++                          💰 {price} ج.س
++                        </span>
++                      )}
+                     </div>
+-                  )}
+-                </div>
++                    <span className="text-[10px] text-slate-500 font-mono">
++                      {ride.created_at ? new Date(ride.created_at).toLocaleString("ar-SD") : ""}
++                    </span>
++                  </div>
++
++                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-slate-300">
++                    <div className="truncate">👤 {ride.passenger_name || "—"}</div>
++                    <div dir="ltr" className="text-left">
++                      📞 {ride.phone_number || "—"}
++                    </div>
++                    <div className="truncate">📍 من: {ride.pickup_location || "—"}</div>
++                    <div className="truncate">🏁 إلى: {ride.destination || "—"}</div>
++                    <div className="truncate">
++                      🚖 السائق:{" "}
++                      {ride.driver_phone ? (
++                        <a href={`tel:${ride.driver_phone}`} className="font-mono text-amber-400 hover:underline" dir="ltr">
++                          {ride.driver_phone}
++                        </a>
++                      ) : ride.driver_id ? (
++                        <span className="font-mono text-slate-400">#{ride.driver_id}</span>
++                      ) : (
++                        "—"
++                      )}
++                    </div>
++                  </div>
+ 
+-                <div className="pt-2 flex justify-end">
+-                  <button
+-                    type="button"
+-                    onClick={() => deleteRide(ride.id)}
+-                    className="text-[10px] text-red-400 hover:text-red-300 bg-red-500/10 px-2.5 py-1 rounded-lg border border-red-500/20 transition"
+-                  >
+-                    حذف الطلب 🗑️
+-                  </button>
++                  <div className="flex gap-2 pt-0.5">
++                    {ride.status === "accepted" && (
++                      <button
++                        onClick={() => unlockRide(ride.id)}
++                        className="flex-1 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/25 rounded-lg font-bold text-[10px] transition"
++                      >
++                        🔓 إعادة فتح للسائقين
++                      </button>
++                    )}
++                    {(ride.status === "pending" || ride.status === "accepted") && (
++                      <button
++                        onClick={() => cancelRide(ride.id)}
++                        className="flex-1 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/25 rounded-lg font-bold text-[10px] transition"
++                      >
++                        ❌ إلغاء
++                      </button>
++                    )}
++                    <button
++                      onClick={() => deleteRide(ride.id)}
++                      className={`py-2 ${ride.status === "accepted" ? "flex-1" : "flex-1"} bg-slate-800 hover:bg-slate-700 text-slate-400 border border-slate-700 rounded-lg font-bold text-[10px] transition`}
++                    >
++                      🗑️ حذف نهائي
++                    </button>
++                  </div>
+                 </div>
+-              </div>
+-            ))
+-          )}
+-        </div>
++              );
++            })}
++          </div>
++        )}
+ 
++        {/* دليل تشغيل SQL */}
++        <details className="bg-[#0d1117] border border-slate-800 rounded-2xl">
++          <summary className="cursor-pointer px-4 py-3 text-xs font-bold text-slate-300 hover:text-amber-400 transition select-none">
++            🗄️ دليل تشغيل قاعدة البيانات (اضغط للنسخ — مطلوب مرة واحدة على Supabase)
++          </summary>
++          <div className="px-4 pb-4 space-y-2">
++            <p className="text-[10px] text-slate-500 leading-relaxed">
++              لوحة Supabase ← SQL Editor ← نفّذ <code className="text-amber-400">phase2.sql</code> ثم{" "}
++              <code className="text-amber-400">phase3.sql</code> (الملفان في مجلد{" "}
++              <code className="text-amber-400">supabase/</code> بالمشروع). بعد phase3 يتوقف وصول المتصفح
++              (anon) للجداول نهائياً وتعمل كل العمليات عبر مسارات الخادم فقط.
++            </p>
++            <div className="flex items-start gap-2">
++              <textarea
++                readOnly
++                value={RUNBOOK_SQL}
++                rows={4}
++                onFocus={(e) => e.currentTarget.select()}
++                className="flex-1 bg-[#161b22] border border-slate-800 rounded-xl p-2.5 text-[10px] font-mono text-emerald-300/90 leading-relaxed resize-y focus:outline-none"
++                dir="ltr"
++              />
++              <button
++                onClick={async () => {
++                  try {
++                    await navigator.clipboard.writeText(RUNBOOK_SQL);
++                  } catch {
++                    /* تجاهل */
++                  }
++                  setCopied(true);
++                  setTimeout(() => setCopied(false), 1500);
++                }}
++                className="shrink-0 py-2 px-3 bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 rounded-xl text-[10px] font-bold transition"
++              >
++                {copied ? "تم النسخ ✅" : "نسخ 📋"}
++              </button>
++            </div>
++            <div className="text-[10px] text-slate-500 leading-relaxed">
++              أنواع الخدمة الموحّدة: {SERVICE_TYPES.map((s) => `${s.icon} ${s.value}`).join(" · ")}
++            </div>
++          </div>
++        </details>
+       </div>
+     </div>
+   );
+diff --git a/src/app/api/admin/rides/[id]/lock/route.ts b/src/app/api/admin/rides/[id]/lock/route.ts
+new file mode 100644
+index 0000000..a84d44f
+--- /dev/null
++++ b/src/app/api/admin/rides/[id]/lock/route.ts
+@@ -0,0 +1,60 @@
++export const dynamic = "force-dynamic";
++import { NextRequest, NextResponse } from "next/server";
++import { requireAdminToken } from "@/lib/admin";
++import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
++
++/**
++ * POST /api/admin/rides/[id]/lock — إعادة فتح رحلة «عالقة»:
++ * مشوار accepted بدون سائق فعلي أو قفل بعد إلغاء من جانب السائق؟
++ * يرجّعها pending (تُحذف بيانات السائق) لتظهر مجدداً للطلبات المتاحة.
++ * الإدارة فقط.
++ */
++export async function POST(
++  request: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  const denied = requireAdminToken(request);
++  if (denied) return denied;
++
++  try {
++    const { id } = await params;
++    const rideId = Number(id);
++    if (!Number.isInteger(rideId) || rideId <= 0) {
++      return NextResponse.json({ ok: false, error: "معرّف رحلة غير صالح" }, { status: 400 });
++    }
++
++    const admin = getSupabaseAdmin();
++
++    // من accepted فقط — حتى لا نعيد فتح رحلة مكتملة أو ملغاة
++    const { data, error } = await admin
++      .from("rides")
++      .update({ status: "pending", driver_id: null, driver_phone: null })
++      .eq("id", rideId)
++      .eq("status", "accepted")
++      .select("id, status")
++      .single();
++
++    if (error) {
++      return NextResponse.json(
++        { ok: false, error: "فشل إعادة الفتح: " + error.message },
++        { status: 500 }
++      );
++    }
++    if (!data) {
++      return NextResponse.json(
++        { ok: false, error: "الرحلة ليست قيد التنفيذ — لا يمكن إعادة فتحها" },
++        { status: 409 }
++      );
++    }
++    return NextResponse.json({ ok: true });
++  } catch (err) {
++    console.error("admin unlock ride error:", err);
++    return NextResponse.json(
++      {
++        ok: false,
++        error: err instanceof Error ? err.message : "فشل إعادة فتح الرحلة",
++      },
++      { status: 503 }
++    );
++  }
++}
+diff --git a/src/app/api/admin/rides/[id]/route.ts b/src/app/api/admin/rides/[id]/route.ts
+new file mode 100644
+index 0000000..0835bf1
+--- /dev/null
++++ b/src/app/api/admin/rides/[id]/route.ts
+@@ -0,0 +1,46 @@
++export const dynamic = "force-dynamic";
++import { NextRequest, NextResponse } from "next/server";
++import { requireAdminToken } from "@/lib/admin";
++import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
++
++/**
++ * DELETE /api/admin/rides/[id] — حذف رحلة (الإدارة فقط)
++ */
++export async function DELETE(
++  request: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  const denied = requireAdminToken(request);
++  if (denied) return denied;
++
++  try {
++    const { id } = await params;
++    const rideId = Number(id);
++    if (!Number.isInteger(rideId) || rideId <= 0) {
++      return NextResponse.json({ ok: false, error: "معرّف رحلة غير صالح" }, { status: 400 });
++    }
++
++    const admin = getSupabaseAdmin();
++    const { error, count } = await admin.from("rides").delete().eq("id", rideId);
++
++    if (error) {
++      return NextResponse.json(
++        { ok: false, error: "فشل الحذف: " + error.message },
++        { status: 500 }
++      );
++    }
++    if (!count) {
++      return NextResponse.json({ ok: false, error: "الرحلة غير موجودة" }, { status: 404 });
++    }
++    return NextResponse.json({ ok: true });
++  } catch (err) {
++    console.error("admin delete ride error:", err);
++    return NextResponse.json(
++      {
++        ok: false,
++        error: err instanceof Error ? err.message : "فشل الحذف",
++      },
++      { status: 503 }
++    );
++  }
++}
+diff --git a/src/app/api/admin/rides/route.ts b/src/app/api/admin/rides/route.ts
+new file mode 100644
+index 0000000..a699f07
+--- /dev/null
++++ b/src/app/api/admin/rides/route.ts
+@@ -0,0 +1,66 @@
++export const dynamic = "force-dynamic";
++import { NextRequest, NextResponse } from "next/server";
++import { requireAdminToken } from "@/lib/admin";
++import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
++
++/**
++ * GET /api/admin/rides — لوحة الإدارة (x-admin-token)
++ * يرجع آخر 100 رحلة + إحصائيات سريعة بالحالات الموحّدة.
++ */
++export async function GET(request: NextRequest) {
++  const denied = requireAdminToken(request);
++  if (denied) return denied;
++
++  try {
++    const admin = getSupabaseAdmin();
++
++    const { data: rides, error } = await admin
++      .from("rides")
++      .select("id, passenger_name, phone_number, pickup_location, destination, offered_price, service_type, status, driver_id, driver_phone, created_at")
++      .order("created_at", { ascending: false })
++      .limit(100);
++
++    if (error) {
++      return NextResponse.json(
++        { ok: false, error: "فشل جلب الرحلات: " + error.message },
++        { status: 500 }
++      );
++    }
++
++    // إحصائيات (مع تطبيع الحالات القديمة)
++    const statusMap: Record<string, number> = {};
++    let total = 0;
++    for (const r of rides || []) {
++      total++;
++      let s = String(r.status || "pending");
++      if (s === "searching") s = "pending";
++      if (s === "arrived") s = "accepted";
++      if (!["pending", "accepted", "completed", "cancelled"].includes(s)) s = "pending";
++      statusMap[s] = (statusMap[s] || 0) + 1;
++    }
++
++    return NextResponse.json({
++      ok: true,
++      stats: {
++        total,
++        pending: statusMap.pending || 0,
++        accepted: statusMap.accepted || 0,
++        completed: statusMap.completed || 0,
++        cancelled: statusMap.cancelled || 0,
++      },
++      rides: rides || [],
++    });
++  } catch (err) {
++    console.error("admin rides error:", err);
++    return NextResponse.json(
++      {
++        ok: false,
++        error:
++          err instanceof Error
++            ? err.message
++            : "خدمة اللوحة غير مضبوطة على الخادم بعد",
++      },
++      { status: 503 }
++    );
++  }
++}
+diff --git a/src/app/api/admin/verify/route.ts b/src/app/api/admin/verify/route.ts
+index b6cd2e8..ddd38ed 100644
+--- a/src/app/api/admin/verify/route.ts
++++ b/src/app/api/admin/verify/route.ts
+@@ -1,3 +1,4 @@
++export const dynamic = "force-dynamic";
+ import { NextRequest, NextResponse } from "next/server";
+ import { safeEqual } from "@/lib/admin";
+ 
+diff --git a/src/app/api/driver/location/route.ts b/src/app/api/driver/location/route.ts
+new file mode 100644
+index 0000000..aeef16e
+--- /dev/null
++++ b/src/app/api/driver/location/route.ts
+@@ -0,0 +1,49 @@
++export const dynamic = "force-dynamic";
++import { NextRequest, NextResponse } from "next/server";
++import { findDriverByToken, getDriverToken } from "@/lib/driverSession";
++import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
++
++/**
++ * POST /api/driver/location { lat, lng } — تحديث موقع السائق الحالي
++ * (يُخزَّن في drivers.current_lat/lng ويُستخدم عند جلب الطلبات الأقرب)
++ */
++export async function POST(request: NextRequest) {
++  try {
++    const driver = await findDriverByToken(getDriverToken(request));
++    if (!driver) {
++      return NextResponse.json(
++        { ok: false, error: "الجلسة غير صالحة — سجّل الدخول من جديد" },
++        { status: 401 }
++      );
++    }
++
++    const body = await request.json().catch(() => ({}));
++    const lat = Number(body.lat);
++    const lng = Number(body.lng);
++    if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
++      return NextResponse.json({ ok: false, error: "إحداثيات غير صالحة" }, { status: 400 });
++    }
++
++    const admin = getSupabaseAdmin();
++    const { error } = await admin
++      .from("drivers")
++      .update({ current_lat: lat, current_lng: lng })
++      .eq("id", driver.id);
++
++    if (error) {
++      return NextResponse.json(
++        { ok: false, error: "فشل حفظ الموقع: " + error.message },
++        { status: 500 }
++      );
++    }
++    return NextResponse.json({ ok: true });
++  } catch (err) {
++    return NextResponse.json(
++      {
++        ok: false,
++        error: err instanceof Error ? err.message : "خدمة الموقع غير مضبوطة بعد",
++      },
++      { status: 503 }
++    );
++  }
++}
+diff --git a/src/app/api/driver/me/route.ts b/src/app/api/driver/me/route.ts
+index 45e229b..6e0ac45 100644
+--- a/src/app/api/driver/me/route.ts
++++ b/src/app/api/driver/me/route.ts
+@@ -1,3 +1,4 @@
++export const dynamic = "force-dynamic";
+ import { NextRequest, NextResponse } from "next/server";
+ import { findDriverByToken, getDriverToken, serializeDriver } from "@/lib/driverSession";
+ 
+diff --git a/src/app/api/driver/profile/route.ts b/src/app/api/driver/profile/route.ts
+index 2772551..d5c1fd9 100644
+--- a/src/app/api/driver/profile/route.ts
++++ b/src/app/api/driver/profile/route.ts
+@@ -1,3 +1,4 @@
++export const dynamic = "force-dynamic";
+ import { NextRequest, NextResponse } from "next/server";
+ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+ import {
+diff --git a/src/app/api/driver/request-otp/route.ts b/src/app/api/driver/request-otp/route.ts
+index db1cf31..1ac6b6a 100644
+--- a/src/app/api/driver/request-otp/route.ts
++++ b/src/app/api/driver/request-otp/route.ts
+@@ -1,3 +1,4 @@
++export const dynamic = "force-dynamic";
+ import { NextRequest, NextResponse } from "next/server";
+ import { normalizeSudanesePhone } from "@/lib/format";
+ import { issueOtp } from "@/lib/otp";
+diff --git a/src/app/api/driver/rides/route.ts b/src/app/api/driver/rides/route.ts
+new file mode 100644
+index 0000000..3596391
+--- /dev/null
++++ b/src/app/api/driver/rides/route.ts
+@@ -0,0 +1,131 @@
++export const dynamic = "force-dynamic";
++import { NextRequest, NextResponse } from "next/server";
++import { findDriverByToken, getDriverToken } from "@/lib/driverSession";
++import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
++import { toDriverRide } from "@/lib/rideServer";
++import { haversineKm, radiusBounds, DEFAULT_SEARCH_RADIUS_KM } from "@/lib/geo";
++
++/**
++ * GET /api/driver/rides?lat=..&lng=.. — قائمة طلبات السائق:
++ * • الطلبات pending الأقرب (داخل ±10 كم حول موقع السائق) مرتبة بالمسافة
++ * • الطلبات بلا إحداثيات تظهر في النهاية (لا تضيع)
++ * • المشوار الحالي «مشواري أنا» عبر driver_id (مع دعم driver_phone القديم)
++ * الموقع: إما query params (من GPS المتصفح) أو current_lat/lng المخزّنة.
++ */
++export async function GET(request: NextRequest) {
++  try {
++    const driver = await findDriverByToken(getDriverToken(request));
++    if (!driver) {
++      return NextResponse.json(
++        { ok: false, error: "الجلسة غير صالحة — سجّل الدخول من جديد" },
++        { status: 401 }
++      );
++    }
++
++    const admin = getSupabaseAdmin();
++    const { searchParams } = new URL(request.url);
++    const qLat = Number(searchParams.get("lat"));
++    const qLng = Number(searchParams.get("lng"));
++    const hasLive =
++      Number.isFinite(qLat) && Number.isFinite(qLng) && qLat !== 0 && qLng !== 0;
++
++    let lat = hasLive ? qLat : driver.current_lat === null || driver.current_lat === undefined ? NaN : Number(driver.current_lat);
++    let lng = hasLive ? qLng : driver.current_lng === null || driver.current_lng === undefined ? NaN : Number(driver.current_lng);
++    const hasLocation = Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0;
++    if (!hasLocation) {
++      lat = 0;
++      lng = 0;
++    }
++
++    // ── الطلبات المتاحة ──────────────────────────────────────────
++    let available: Record<string, unknown>[] = [];
++
++    if (hasLocation) {
++      const b = radiusBounds(lat, lng, DEFAULT_SEARCH_RADIUS_KM);
++      const { data: inBbox, error: bboxError } = await admin
++        .from("rides")
++        .select("*")
++        .eq("status", "pending")
++        .gte("pickup_lat", b.minLat)
++        .lte("pickup_lat", b.maxLat)
++        .gte("pickup_lng", b.minLng)
++        .lte("pickup_lng", b.maxLng);
++
++      const { data: noCoords } = await admin
++        .from("rides")
++        .select("*")
++        .eq("status", "pending")
++        .is("pickup_lat", null);
++
++      if (bboxError) {
++        return NextResponse.json(
++          { ok: false, error: "فشل جلب الطلبات: " + bboxError.message },
++          { status: 500 }
++        );
++      }
++
++      const near = (inBbox || [])
++        .filter(
++          (r: any) =>
++            typeof r.pickup_lat === "number" && typeof r.pickup_lng === "number"
++        )
++        .map((r: any) => ({
++          row: r as Record<string, unknown>,
++          d: haversineKm(lat, lng, r.pickup_lat as number, r.pickup_lng as number),
++        }))
++        .sort((a, b2) => a.d - b2.d);
++
++      available = [
++        ...near.map((n) => toDriverRide(n.row, Math.round(n.d * 10) / 10)),
++        ...((noCoords || []) as Record<string, unknown>[]).map((r) => toDriverRide(r, null)),
++      ];
++    } else {
++      const { data } = await admin
++        .from("rides")
++        .select("*")
++        .eq("status", "pending")
++        .order("created_at", { ascending: false });
++      available = ((data || []) as Record<string, unknown>[]).map((r) => toDriverRide(r, null));
++    }
++
++    // ── المشوار الحالي: مشواري أنا فقط ───────────────────────────
++    let mine: Record<string, unknown> | null = null;
++    const { data: byId } = await admin
++      .from("rides")
++      .select("*")
++      .eq("status", "accepted")
++      .eq("driver_id", driver.id)
++      .order("created_at", { ascending: false })
++      .limit(1)
++      .maybeSingle();
++    if (byId) {
++      mine = byId as Record<string, unknown>;
++    } else {
++      const { data: byPhone } = await admin
++        .from("rides")
++        .select("*")
++        .eq("status", "accepted")
++        .eq("driver_phone", driver.phone)
++        .order("created_at", { ascending: false })
++        .limit(1)
++        .maybeSingle();
++      if (byPhone) mine = byPhone as Record<string, unknown>;
++    }
++
++    return NextResponse.json({
++      ok: true,
++      hasLocation,
++      available,
++      current: mine ? toDriverRide(mine as Record<string, unknown>) : null,
++    });
++  } catch (err) {
++    console.error("driver rides error:", err);
++    return NextResponse.json(
++      {
++        ok: false,
++        error: err instanceof Error ? err.message : "خدمة الطلبات غير مضبوطة بعد",
++      },
++      { status: 503 }
++    );
++  }
++}
+diff --git a/src/app/api/driver/verify-otp/route.ts b/src/app/api/driver/verify-otp/route.ts
+index 7eb173b..56d6778 100644
+--- a/src/app/api/driver/verify-otp/route.ts
++++ b/src/app/api/driver/verify-otp/route.ts
+@@ -1,3 +1,4 @@
++export const dynamic = "force-dynamic";
+ import { NextRequest, NextResponse } from "next/server";
+ import { normalizeSudanesePhone } from "@/lib/format";
+ import { verifyOtp, newSessionToken } from "@/lib/otp";
+diff --git a/src/app/api/rides/[id]/accept/route.ts b/src/app/api/rides/[id]/accept/route.ts
+new file mode 100644
+index 0000000..2e52987
+--- /dev/null
++++ b/src/app/api/rides/[id]/accept/route.ts
+@@ -0,0 +1,50 @@
++export const dynamic = "force-dynamic";
++import { NextRequest, NextResponse } from "next/server";
++import { acceptRide } from "@/lib/rideServer";
++import { findDriverByToken, getDriverToken } from "@/lib/driverSession";
++
++/**
++ * POST /api/rides/[id]/accept — قبول السائق لرحلة (x-driver-token)
++ * التحديث شرطي على status=pending فيمنع القبول المزدوج (التنافس: 409).
++ */
++export async function POST(
++  request: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  try {
++    const { id } = await params;
++    const rideId = Number(id);
++    if (!Number.isInteger(rideId) || rideId <= 0) {
++      return NextResponse.json({ ok: false, error: "معرّف رحلة غير صالح" }, { status: 400 });
++    }
++
++    const driver = await findDriverByToken(getDriverToken(request));
++    if (!driver) {
++      return NextResponse.json(
++        { ok: false, error: "الجلسة غير صالحة — سجّل الدخول من جديد" },
++        { status: 401 }
++      );
++    }
++
++    const result = await acceptRide(rideId, driver.id, driver.phone);
++    if (!result.ok) {
++      if (result.conflict) {
++        return NextResponse.json(
++          { ok: false, error: "الطلب اتقبل من سائق تاني قبل ما تدوس — جرب طلب تاني" },
++          { status: 409 }
++        );
++      }
++      return NextResponse.json({ ok: false, error: result.error }, { status: 500 });
++    }
++    return NextResponse.json({ ok: true, ride: result.ride });
++  } catch (err) {
++    console.error("accept ride error:", err);
++    return NextResponse.json(
++      {
++        ok: false,
++        error: err instanceof Error ? err.message : "فشل القبول",
++      },
++      { status: 503 }
++    );
++  }
++}
+diff --git a/src/app/api/rides/[id]/cancel/route.ts b/src/app/api/rides/[id]/cancel/route.ts
+new file mode 100644
+index 0000000..7a3b4f6
+--- /dev/null
++++ b/src/app/api/rides/[id]/cancel/route.ts
+@@ -0,0 +1,68 @@
++export const dynamic = "force-dynamic";
++import { NextRequest, NextResponse } from "next/server";
++import { cancelRide, getRiderToken } from "@/lib/rideServer";
++import { findDriverByToken, getDriverToken } from "@/lib/driverSession";
++import { requireAdminToken } from "@/lib/admin";
++
++/**
++ * POST /api/rides/[id]/cancel — إلغاء الرحلة:
++ * • صاحبها (x-rider-token) • السائق المعيّن عليها (x-driver-token) • الإدارة (x-admin-token)
++ */
++export async function POST(
++  request: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  try {
++    const { id } = await params;
++    const rideId = Number(id);
++    if (!Number.isInteger(rideId) || rideId <= 0) {
++      return NextResponse.json({ ok: false, error: "معرّف رحلة غير صالح" }, { status: 400 });
++    }
++
++    const adminDenied = requireAdminToken(request);
++    if (adminDenied) {
++      // ليست إدارة؟ جرّب الراكب ثم السائق
++      const riderToken = getRiderToken(request);
++      let driverAuth: { id: number; phone: string } | null = null;
++      try {
++        const driver = await findDriverByToken(getDriverToken(request));
++        if (driver) driverAuth = { id: driver.id, phone: driver.phone };
++      } catch {
++        driverAuth = null;
++      }
++
++      if (!riderToken && !driverAuth) {
++        return NextResponse.json(
++          { ok: false, error: "غير مصرح — أرسل رمز الراكب أو السائق أو الإدارة" },
++          { status: 401 }
++        );
++      }
++
++      const result = await cancelRide(rideId, {
++        riderToken: riderToken || undefined,
++        driverId: driverAuth?.id,
++        driverPhone: driverAuth?.phone,
++      });
++      if (!result.ok) {
++        return NextResponse.json({ ok: false, error: result.error }, { status: 403 });
++      }
++      return NextResponse.json({ ok: true });
++    }
++
++    // إدارة: adminDenied === null يعني أن الرمز الإداري صحيح
++    const result = await cancelRide(rideId, { admin: true });
++    if (!result.ok) {
++      return NextResponse.json({ ok: false, error: result.error }, { status: 403 });
++    }
++    return NextResponse.json({ ok: true });
++  } catch (err) {
++    console.error("cancel ride error:", err);
++    return NextResponse.json(
++      {
++        ok: false,
++        error: err instanceof Error ? err.message : "فشل الإلغاء",
++      },
++      { status: 503 }
++    );
++  }
++}
+diff --git a/src/app/api/rides/[id]/complete/route.ts b/src/app/api/rides/[id]/complete/route.ts
+new file mode 100644
+index 0000000..0f4e646
+--- /dev/null
++++ b/src/app/api/rides/[id]/complete/route.ts
+@@ -0,0 +1,43 @@
++export const dynamic = "force-dynamic";
++import { NextRequest, NextResponse } from "next/server";
++import { completeRide } from "@/lib/rideServer";
++import { findDriverByToken, getDriverToken } from "@/lib/driverSession";
++
++/**
++ * POST /api/rides/[id]/complete — إنهاء المشوار (السائق المعيّن فقط)
++ */
++export async function POST(
++  request: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  try {
++    const { id } = await params;
++    const rideId = Number(id);
++    if (!Number.isInteger(rideId) || rideId <= 0) {
++      return NextResponse.json({ ok: false, error: "معرّف رحلة غير صالح" }, { status: 400 });
++    }
++
++    const driver = await findDriverByToken(getDriverToken(request));
++    if (!driver) {
++      return NextResponse.json(
++        { ok: false, error: "الجلسة غير صالحة — سجّل الدخول من جديد" },
++        { status: 401 }
++      );
++    }
++
++    const result = await completeRide(rideId, driver.id, driver.phone);
++    if (!result.ok) {
++      return NextResponse.json({ ok: false, error: result.error }, { status: 403 });
++    }
++    return NextResponse.json({ ok: true });
++  } catch (err) {
++    console.error("complete ride error:", err);
++    return NextResponse.json(
++      {
++        ok: false,
++        error: err instanceof Error ? err.message : "فشل إنهاء المشوار",
++      },
++      { status: 503 }
++    );
++  }
++}
+diff --git a/src/app/api/rides/[id]/raise/route.ts b/src/app/api/rides/[id]/raise/route.ts
+new file mode 100644
+index 0000000..afdf07a
+--- /dev/null
++++ b/src/app/api/rides/[id]/raise/route.ts
+@@ -0,0 +1,39 @@
++export const dynamic = "force-dynamic";
++import { NextRequest, NextResponse } from "next/server";
++import { getRiderToken, raisePrice } from "@/lib/rideServer";
++
++/**
++ * POST /api/rides/[id]/raise — زوّد السعر ٢٠٪ (صاحب الرحلة فقط وهي pending)
++ */
++export async function POST(
++  request: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  try {
++    const { id } = await params;
++    const rideId = Number(id);
++    if (!Number.isInteger(rideId) || rideId <= 0) {
++      return NextResponse.json({ ok: false, error: "معرّف رحلة غير صالح" }, { status: 400 });
++    }
++
++    const riderToken = getRiderToken(request);
++    if (!riderToken) {
++      return NextResponse.json({ ok: false, error: "رمز الرحلة مطلوب" }, { status: 401 });
++    }
++
++    const result = await raisePrice(rideId, riderToken);
++    if (!result.ok) {
++      return NextResponse.json({ ok: false, error: result.error }, { status: 403 });
++    }
++    return NextResponse.json({ ok: true, price: result.price });
++  } catch (err) {
++    console.error("raise price error:", err);
++    return NextResponse.json(
++      {
++        ok: false,
++        error: err instanceof Error ? err.message : "فشل رفع السعر",
++      },
++      { status: 503 }
++    );
++  }
++}
+diff --git a/src/app/api/rides/[id]/route.ts b/src/app/api/rides/[id]/route.ts
+new file mode 100644
+index 0000000..c2ea34a
+--- /dev/null
++++ b/src/app/api/rides/[id]/route.ts
+@@ -0,0 +1,47 @@
++export const dynamic = "force-dynamic";
++import { NextRequest, NextResponse } from "next/server";
++import { getRiderToken, loadRide, riderTokenMatches, toSafeRide } from "@/lib/rideServer";
++
++/**
++ * GET /api/rides/[id] — استطلاع حالة الرحلة (صاحبها فقط عبر x-rider-token)
++ * بعد تفعيل RLS في المرحلة 3 يعتمد الراكب على هذا الاستطلاع الدوري.
++ */
++export async function GET(
++  request: NextRequest,
++  { params }: { params: Promise<{ id: string }> }
++) {
++  try {
++    const { id } = await params;
++    const rideId = Number(id);
++    if (!Number.isInteger(rideId) || rideId <= 0) {
++      return NextResponse.json({ ok: false, error: "معرّف رحلة غير صالح" }, { status: 400 });
++    }
++
++    const token = getRiderToken(request);
++    if (!token) {
++      return NextResponse.json({ ok: false, error: "رمز الرحلة مطلوب" }, { status: 401 });
++    }
++
++    const row = await loadRide(rideId);
++    if (!row) {
++      return NextResponse.json({ ok: false, error: "الرحلة غير موجودة" }, { status: 404 });
++    }
++    if (!riderTokenMatches(String(row.rider_token || ""), token)) {
++      return NextResponse.json({ ok: false, error: "غير مصرح بهذه الرحلة" }, { status: 403 });
++    }
++
++    return NextResponse.json({ ok: true, ride: toSafeRide(row) });
++  } catch (err) {
++    console.error("poll ride error:", err);
++    return NextResponse.json(
++      {
++        ok: false,
++        error:
++          err instanceof Error
++            ? err.message
++            : "خدمة الاستعلام غير مضبوطة على الخادم بعد",
++      },
++      { status: 503 }
++    );
++  }
++}
+diff --git a/src/app/api/rides/route.ts b/src/app/api/rides/route.ts
+new file mode 100644
+index 0000000..d6e9b16
+--- /dev/null
++++ b/src/app/api/rides/route.ts
+@@ -0,0 +1,39 @@
++export const dynamic = "force-dynamic";
++import { NextRequest, NextResponse } from "next/server";
++import { createRide, validateCreateRide } from "@/lib/rideServer";
++
++/**
++ * POST /api/rides — إنشاء طلب رحلة (عام، بعد تحقق كامل من المدخلات)
++ * يرجع: { ride, riderToken } — riderToken يُحفظ في localStorage عند الراكب
++ * ويُرسل في ترويسة x-rider-token لكل تعديل لاحق على رحلته.
++ */
++export async function POST(request: NextRequest) {
++  let body: Record<string, unknown>;
++  try {
++    body = await request.json();
++  } catch {
++    return NextResponse.json({ ok: false, error: "طلب غير صالح" }, { status: 400 });
++  }
++
++  const result = validateCreateRide(body);
++  if (!result.ok) {
++    return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
++  }
++
++  try {
++    const { ride, riderToken } = await createRide(result.input);
++    return NextResponse.json({ ok: true, ride, riderToken }, { status: 201 });
++  } catch (err) {
++    console.error("create ride error:", err);
++    return NextResponse.json(
++      {
++        ok: false,
++        error:
++          err instanceof Error
++            ? err.message
++            : "تعذر حفظ الطلب — تحقق من إعدادات قاعدة البيانات على الخادم",
++      },
++      { status: 503 }
++    );
++  }
++}
+diff --git a/src/app/driver/page.tsx b/src/app/driver/page.tsx
+index ec6bc12..4e97f7d 100644
+--- a/src/app/driver/page.tsx
++++ b/src/app/driver/page.tsx
+@@ -2,40 +2,30 @@
+ 
+ import { useState, useEffect, useRef, useCallback } from "react";
+ import Map from "@/components/Map";
+-import { supabase } from "@/lib/supabase";
+ import { normalizeSudanesePhone, formatPrice, maskAccount } from "@/lib/format";
+ import { serviceTypeLabel } from "@/lib/constants";
+-import {
+-  haversineKm,
+-  radiusBounds,
+-  formatKm,
+-  DEFAULT_SEARCH_RADIUS_KM,
+-} from "@/lib/geo";
+ 
+ /* ════════════════════════════════════════════════════════════════════
+- *  لوحة السائق — المرحلة 2:
+- *  • دخول حقيقي برمز OTP (مسارات خادم + جدول drivers على Supabase)
+- *  • هوية السائق driver_id (integer FK) تُكتب على الرحلة عند القبول
+- *  • «مشواري أنا» فقط: المطابقة عبر driver_id (مع دعم driver_phone القديم)
+- *  • فلتر «الأقرب»: pickup_lat/lng + موقع السائق (نصف قطر 10 كم)
+- *  • قبول شرطي يمنع القبول المزدوج + اشتراك realtime واحد + WebAudio داخلي
+- *  • قناع الحساب البنكي
++ *  لوحة السائق — المرحلة 3:
++ *  كل العمليات عبر مسارات الخادم (بعد RLS لا يصل المتصفح للجداول مباشرة):
++ *  GET/POST /api/driver/* + استطلاع دوري للطلبات كل 5 ثوانٍ
++ *  • دخول OTP حقيقي • driver_id integer FK • «مشواري أنا» فقط
++ *  • الطلبات الأقرب (pickup_lat/lng) • قبول شرطي يمنع المزدوج • WebAudio داخلي
+  * ════════════════════════════════════════════════════════════════════ */
+ 
+ interface Ride {
+-  id: string | number;
+-  passenger_name: string;
+-  phone_number: string;
+-  pickup_location: string;
++  id: number | string;
++  status: string;
++  serviceType: string;
++  pickupLocation: string;
+   destination: string;
+-  offered_price: number | null;
+-  service_type: string;
+-  status: "pending" | "accepted" | "completed" | "cancelled";
+-  driver_id?: number | null;
+-  driver_phone?: string | null;
+-  pickup_lat?: number | null;
+-  pickup_lng?: number | null;
+-  distanceKm?: number | null; // تُحسب محلياً لعرض «الأقرب»
++  offeredPrice: number | null;
++  driverId: number | null;
++  driverPhone: string | null;
++  passengerName: string;
++  phoneNumber: string;
++  distanceKm: number | null;
++  createdAt: string | null;
+ }
+ 
+ interface DriverProfile {
+@@ -47,13 +37,14 @@ interface DriverProfile {
+   isOnline: boolean;
+ }
+ 
++const POLL_MS = 5000;
++const DRIVER_TOKEN_KEY = "driver_token";
+ const sameId = (a: unknown, b: unknown) =>
+   a !== undefined && a !== null && b !== undefined && b !== null && String(a) === String(b);
+ 
+ type AuthStage = "login" | "code" | "ready";
+ 
+ export default function DriverDashboard() {
+-  // ── حالة المصادقة ─────────────────────────────────────────────
+   const [stage, setStage] = useState<AuthStage>("login");
+   const [phoneDigits, setPhoneDigits] = useState("");
+   const [codeDigits, setCodeDigits] = useState("");
+@@ -68,7 +59,6 @@ export default function DriverDashboard() {
+   const [vehicleDraft, setVehicleDraft] = useState("");
+   const [showBank, setShowBank] = useState(false);
+ 
+-  // ── حالة العمل ────────────────────────────────────────────────
+   const [isAvailable, setIsAvailable] = useState(true);
+   const [availableRides, setAvailableRides] = useState<Ride[]>([]);
+   const [currentRide, setCurrentRide] = useState<Ride | null>(null);
+@@ -77,13 +67,13 @@ export default function DriverDashboard() {
+   const [geoMsg, setGeoMsg] = useState<string | null>(null);
+   const [locating, setLocating] = useState(false);
+ 
+-  // ── refs ──────────────────────────────────────────────────────
+   const profileRef = useRef<DriverProfile | null>(null);
+   const currentRideRef = useRef<Ride | null>(null);
+   const acceptingRef = useRef(false);
+-  const prevCountRef = useRef(0);
++  const knownIdsRef = useRef<Set<string>>(new Set());
+   const audioCtxRef = useRef<AudioContext | null>(null);
+   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
++  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+ 
+   const syncProfile = useCallback((p: DriverProfile | null) => {
+     profileRef.current = p;
+@@ -95,33 +85,113 @@ export default function DriverDashboard() {
+     setCurrentRide(ride);
+   }, []);
+ 
+-  const fullPhone = normalizeSudanesePhone(phoneDigits);
++  const tokenOf = () => (typeof window !== "undefined" ? localStorage.getItem(DRIVER_TOKEN_KEY) : null);
+ 
+-  /** هل الرحلة «مشواري أنا»؟ المطابقة الأساسية driver_id ثم driver_phone للقديم */
+-  const isMine = useCallback(
+-    (ride: { driver_id?: number | null; driver_phone?: string | null }): boolean => {
+-      const p = profileRef.current;
+-      if (!p) return false;
+-      if (ride.driver_id !== undefined && ride.driver_id !== null) {
+-        return sameId(ride.driver_id, p.id);
+-      }
+-      return (ride.driver_phone || "") === p.phone;
++  // ── تنبيه WebAudio داخلي ─────────────────────────────────────────
++  const playAlert = useCallback(() => {
++    try {
++      const Ctx =
++        window.AudioContext ||
++        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
++      if (!Ctx) return;
++      if (!audioCtxRef.current) audioCtxRef.current = new Ctx();
++      const ctx = audioCtxRef.current;
++      if (ctx.state === "suspended") void ctx.resume();
++      const now = ctx.currentTime;
++      [880, 1174.66].forEach((freq, i) => {
++        const osc = ctx.createOscillator();
++        const gain = ctx.createGain();
++        osc.type = "sine";
++        osc.frequency.value = freq;
++        const start = now + i * 0.18;
++        gain.gain.setValueAtTime(0.0001, start);
++        gain.gain.exponentialRampToValueAtTime(0.22, start + 0.02);
++        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
++        osc.connect(gain);
++        gain.connect(ctx.destination);
++        osc.start(start);
++        osc.stop(start + 0.2);
++      });
++    } catch (err) {
++      console.log("Audio notification error:", err);
++    }
++  }, []);
++
++  /** تنبيه فقط للطلبات الجديدة فعلاً (لا عند فتح الصفحة) */
++  const alertIfNew = useCallback(
++    (rides: Ride[]) => {
++      const fresh = rides.filter((r) => !knownIdsRef.current.has(String(r.id)));
++      if (fresh.length > 0 && !currentRideRef.current) playAlert();
++      fresh.forEach((r) => knownIdsRef.current.add(String(r.id)));
+     },
+-    []
++    [playAlert]
+   );
+ 
+-  // ── 0) استعادة الجلسة عند فتح الصفحة ─────────────────────────
++  // ── الاستطلاع الدوري عبر الخادم ──────────────────────────────────
++  const pollRides = useCallback(async () => {
++    const token = tokenOf();
++    if (!token || !profileRef.current) return;
++
++    try {
++      const c = coordsRef.current;
++      const qs = c ? `?lat=${c.lat}&lng=${c.lng}` : "";
++      const res = await fetch(`/api/driver/rides${qs}`, {
++        headers: { "x-driver-token": token },
++        cache: "no-store",
++      });
++      const data = await res.json().catch(() => ({}));
++      if (!res.ok || !data.ok) {
++        if (res.status === 401) {
++          localStorage.removeItem(DRIVER_TOKEN_KEY);
++          handleLogoutLocal();
++        }
++        return;
++      }
++
++      const available: Ride[] = (data.available || []).map((r: any) => ({ ...r }));
++      alertIfNew(available);
++      setAvailableRides(available);
++
++      // «مشواري أنا» فقط — والخادم لا يعيد إلا رحلتي
++      const cur = data.current as Ride | null;
++      const prev = currentRideRef.current;
++      if (cur) {
++        syncCurrentRide(cur);
++        if (prev && sameId(prev.id, cur.id) && prev.status === "accepted" && cur.status === "accepted") {
++          // نفس المشوار
++        }
++      } else if (prev) {
++        // اختفى المشوار الحالي: اكتمل أو أُلغي — اسأل برسالة محايدة
++        alert("تم إنهاء المشوار أو إلغاؤه 🏁");
++        syncCurrentRide(null);
++        setActiveTab("available");
++      }
++    } catch {
++      /* تجاهل أخطاء الشبكة المؤقتة */
++    }
++  }, [alertIfNew, syncCurrentRide]);
++
++  /** خروج محلي (بعد 401) */
++  const handleLogoutLocal = () => {
++    syncProfile(null);
++    syncCurrentRide(null);
++    setAvailableRides([]);
++    setStage("login");
++    setCodeDigits("");
++    setAuthInfo(null);
++    setPreviewCode(null);
++    knownIdsRef.current = new Set();
++  };
++
++  // استعادة الجلسة
+   useEffect(() => {
+     if (typeof window === "undefined") return;
+-
+-    const token = localStorage.getItem("driver_token");
++    const token = localStorage.getItem(DRIVER_TOKEN_KEY);
+     const legacyPhone = localStorage.getItem("driver_phone");
+     if (legacyPhone && !token) {
+-      // هجرة من الإصدار القديم: نملأ الرقم ونطلب التحقق بالرمز
+       const norm = normalizeSudanesePhone(legacyPhone);
+       if (norm) setPhoneDigits(norm.replace("+249", ""));
+     }
+-
+     if (!token) return;
+ 
+     let cancelled = false;
+@@ -145,11 +215,10 @@ export default function DriverDashboard() {
+           setPhoneDigits(p.phone.replace("+249", ""));
+           setIsAvailable(p.isOnline);
+           setStage("ready");
+-          locateDriver();
++          locateDriver(false);
+           return;
+         }
+-        localStorage.removeItem("driver_token");
+-        localStorage.removeItem("driver_id");
++        localStorage.removeItem(DRIVER_TOKEN_KEY);
+         setAuthError("انتهت جلستك — سجّل الدخول برمز التحقق من جديد");
+       } catch {
+         if (!cancelled) {
+@@ -157,253 +226,72 @@ export default function DriverDashboard() {
+         }
+       }
+     })();
+-
+     return () => {
+       cancelled = true;
+     };
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, []);
+ 
+-  // ── تنبيه WebAudio داخلي عند وصول طلب جديد ────────────────────
+-  const playAlert = useCallback(() => {
+-    try {
+-      const Ctx =
+-        window.AudioContext ||
+-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+-      if (!Ctx) return;
+-      if (!audioCtxRef.current) audioCtxRef.current = new Ctx();
+-      const ctx = audioCtxRef.current;
+-      if (ctx.state === "suspended") void ctx.resume();
+-      const now = ctx.currentTime;
+-      [880, 1174.66].forEach((freq, i) => {
+-        const osc = ctx.createOscillator();
+-        const gain = ctx.createGain();
+-        osc.type = "sine";
+-        osc.frequency.value = freq;
+-        const start = now + i * 0.18;
+-        gain.gain.setValueAtTime(0.0001, start);
+-        gain.gain.exponentialRampToValueAtTime(0.22, start + 0.02);
+-        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+-        osc.connect(gain);
+-        gain.connect(ctx.destination);
+-        osc.start(start);
+-        osc.stop(start + 0.2);
+-      });
+-    } catch (err) {
+-      console.log("Audio notification error:", err);
+-    }
+-  }, []);
+-
+-  useEffect(() => {
+-    if (!profile) return;
+-    const count = availableRides.length;
+-    if (count > prevCountRef.current && count > 0 && !currentRideRef.current) {
+-      playAlert();
+-      if ("Notification" in window && Notification.permission === "granted") {
+-        const latest = availableRides[0];
+-        if (latest) {
+-          try {
+-            new Notification("طلب مشوار جديد! 🛺", {
+-              body: `من: ${latest.pickup_location || "الموقع"} - إلى: ${latest.destination || "الوجهة"}`,
+-              icon: "/icon.png",
+-            });
+-          } catch {
+-            /* تجاهل */
+-          }
+-        }
+-      }
+-    }
+-    prevCountRef.current = count;
+-  }, [availableRides.length, profile, playAlert]);
+-
+-  // ── طلب إذن الإشعارات ─────────────────────────────────────────
++  // إشعارات المتصفح
+   useEffect(() => {
+     if (stage === "ready" && typeof window !== "undefined" && "Notification" in window) {
+       Notification.requestPermission().catch(() => {});
+     }
+   }, [stage]);
+ 
+-  // ── جلب الطلبات: «الأقرب» عبر pickup_lat/lng ──────────────────
+-  const fetchRides = useCallback(async () => {
+-    const p = profileRef.current;
+-    if (!p) return;
+-
+-    const myCoords = coordsRef.current;
+-    let list: Ride[] = [];
+-
+-    if (myCoords) {
+-      const b = radiusBounds(myCoords.lat, myCoords.lng, DEFAULT_SEARCH_RADIUS_KM);
+-
+-      const inBbox = await supabase
+-        .from("rides")
+-        .select("*")
+-        .eq("status", "pending")
+-        .gte("pickup_lat", b.minLat)
+-        .lte("pickup_lat", b.maxLat)
+-        .gte("pickup_lng", b.minLng)
+-        .lte("pickup_lng", b.maxLng);
+-
+-      // طلبات بلا إحداثيات (كتبها الراكب يدوياً) — تظهر حتى لا تضيع
+-      const noCoords = await supabase
+-        .from("rides")
+-        .select("*")
+-        .eq("status", "pending")
+-        .is("pickup_lat", null);
+-
+-      const near = (inBbox.data || [])
+-        .filter(
+-          (r: any) =>
+-            typeof r.pickup_lat === "number" && typeof r.pickup_lng === "number"
+-        )
+-        .map((r: any) => ({
+-          ...r,
+-          distanceKm: haversineKm(
+-            myCoords.lat,
+-            myCoords.lng,
+-            r.pickup_lat as number,
+-            r.pickup_lng as number
+-          ),
+-        }))
+-        .sort((a: Ride, b: Ride) => (a.distanceKm ?? 0) - (b.distanceKm ?? 0));
+-
+-      list = [...near, ...((noCoords.data || []) as Ride[]).map((r) => ({ ...r, distanceKm: null }))];
+-    } else {
+-      const all = await supabase
+-        .from("rides")
+-        .select("*")
+-        .eq("status", "pending")
+-        .order("created_at", { ascending: false });
+-      list = (all.data || []) as Ride[];
+-    }
+-
+-    // إزالة أي تكرار
+-    const seen = new Set<string>();
+-    list = list.filter((r) => {
+-      const k = String(r.id);
+-      if (seen.has(k)) return false;
+-      seen.add(k);
+-      return true;
+-    });
+-    setAvailableRides(list);
+-    // مزامنة العدّاد حتى لا يصدر تنبيه عند فتح الصفحة (فقط للطلبات الجديدة فعلاً)
+-    prevCountRef.current = list.length;
+-
+-    // «مشواري أنا» فقط — الرحلة الحالية
+-    if (!currentRideRef.current) {
+-      const { data: mineAccepted } = await supabase
+-        .from("rides")
+-        .select("*")
+-        .eq("status", "accepted")
+-        .or(`driver_id.eq.${p.id},driver_phone.eq.${p.phone}`)
+-        .order("created_at", { ascending: false })
+-        .limit(1)
+-        .maybeSingle();
+-      if (mineAccepted) {
+-        syncCurrentRide(mineAccepted as Ride);
+-        setActiveTab("current");
+-      }
+-    }
+-  }, [syncCurrentRide]);
+-
+-  // ── 1) اشتراك realtime واحد لكل جلسة ──────────────────────────
++  // حلقة الاستطلاع الدوري
+   useEffect(() => {
+     if (stage !== "ready") return;
+-
+-    void fetchRides();
+-
+-    const channel = supabase
+-      .channel("driver-rides-channel")
+-      .on(
+-        "postgres_changes",
+-        { event: "*", schema: "public", table: "rides" },
+-        (payload) => {
+-          if (payload.eventType === "INSERT") {
+-            const newRide = payload.new as Ride;
+-            if (newRide.status === "pending") {
+-              setAvailableRides((prev) =>
+-                prev.some((r) => sameId(r.id, newRide.id))
+-                  ? prev
+-                  : [newRide, ...prev]
+-              );
+-            }
+-            return;
+-          }
+-          if (payload.eventType !== "UPDATE") return;
+-          const upd = payload.new as Ride;
+-
+-          if (upd.status === "cancelled") {
+-            setAvailableRides((prev) => prev.filter((r) => !sameId(r.id, upd.id)));
+-            if (currentRideRef.current && sameId(currentRideRef.current.id, upd.id)) {
+-              alert("تم إلغاء المشوار ده من الراكب");
+-              syncCurrentRide(null);
+-              setActiveTab("available");
+-            }
+-            return;
+-          }
+-
+-          if (upd.status === "pending") {
+-            setAvailableRides((prev) => {
+-              const exists = prev.some((r) => sameId(r.id, upd.id));
+-              return exists
+-                ? prev.map((r) => (sameId(r.id, upd.id) ? upd : r))
+-                : [upd, ...prev];
+-            });
+-            return;
+-          }
+-
+-          if (upd.status === "accepted") {
+-            setAvailableRides((prev) => prev.filter((r) => !sameId(r.id, upd.id)));
+-            if (isMine(upd) && !currentRideRef.current) {
+-              syncCurrentRide(upd);
+-            }
+-            return;
+-          }
+-
+-          if (upd.status === "completed") {
+-            if (currentRideRef.current && sameId(currentRideRef.current.id, upd.id)) {
+-              alert("تم إنهاء المشوار 🏁");
+-              syncCurrentRide(null);
+-              setActiveTab("available");
+-            }
+-          }
+-        }
+-      )
+-      .subscribe();
+-
++    void pollRides();
++    pollRef.current = setInterval(pollRides, POLL_MS);
+     return () => {
+-      supabase.removeChannel(channel);
++      if (pollRef.current) clearInterval(pollRef.current);
+     };
+-    // الاشتراك يُنشأ مرة واحدة لكل جلسة دخول
+-    // eslint-disable-next-line react-hooks/exhaustive-deps
+-  }, [stage, isMine, fetchRides, syncCurrentRide]);
+-
+-  // ── تحديد موقع السائق (أساس فلتر الأقرب) ──────────────────────
+-  const locateDriver = useCallback(() => {
+-    if (!navigator.geolocation) {
+-      setGeoMsg("متصفحك لا يدعم تحديد الموقع — ستظهر كل الطلبات");
+-      return;
+-    }
+-    setLocating(true);
+-    setGeoMsg(null);
+-    navigator.geolocation.getCurrentPosition(
+-      (pos) => {
+-        const c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+-        coordsRef.current = c;
+-        setCoords(c);
+-        setLocating(false);
+-        setGeoMsg(null);
+-        void fetchRides();
+-      },
+-      () => {
+-        setLocating(false);
+-        coordsRef.current = null;
+-        setCoords(null);
+-        setGeoMsg("تعذر تحديد موقعك — ستظهر كل الطلبات (بدون ترتيب الأقرب)");
+-        void fetchRides();
+-      },
+-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+-    );
+-  }, [fetchRides]);
++  }, [stage, pollRides]);
++
++  // تحديد موقع السائق (ثم إرساله للخادم + استطلاع فوري)
++  const locateDriver = useCallback(
++    (showMsg = true) => {
++      if (!navigator.geolocation) {
++        if (showMsg) setGeoMsg("متصفحك لا يدعم تحديد الموقع — ستظهر كل الطلبات");
++        void pollRides();
++        return;
++      }
++      setLocating(true);
++      if (showMsg) setGeoMsg(null);
++      navigator.geolocation.getCurrentPosition(
++        async (pos) => {
++          const c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
++          coordsRef.current = c;
++          setCoords(c);
++          setLocating(false);
++          if (showMsg) setGeoMsg(null);
++          const token = tokenOf();
++          if (token) {
++            try {
++              await fetch("/api/driver/location", {
++                method: "POST",
++                headers: { "Content-Type": "application/json", "x-driver-token": token },
++                body: JSON.stringify(c),
++              });
++            } catch {
++              /* تجاهل */
++            }
++          }
++          void pollRides();
++        },
++        () => {
++          setLocating(false);
++          coordsRef.current = null;
++          setCoords(null);
++          if (showMsg) setGeoMsg("تعذر تحديد موقعك — ستظهر كل الطلبات (بدون ترتيب الأقرب)");
++          void pollRides();
++        },
++        { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
++      );
++    },
++    [pollRides]
++  );
+ 
+   // ── OTP: طلب رمز ──────────────────────────────────────────────
+   const requestOtp = async (e: React.FormEvent) => {
+@@ -414,7 +302,6 @@ export default function DriverDashboard() {
+       setAuthError("أدخل رقم هاتف سوداني صحيح (9 أرقام تبدأ بـ 9)");
+       return;
+     }
+-
+     setBusy(true);
+     setAuthError(null);
+     setAuthInfo(null);
+@@ -449,15 +336,10 @@ export default function DriverDashboard() {
+       setAuthError("أدخل رمز التحقق (6 أرقام)");
+       return;
+     }
+-
+     setBusy(true);
+     setAuthError(null);
+     try {
+-      const payload: Record<string, string> = {
+-        phone,
+-        code: codeDigits,
+-      };
+-      // بيانات اختيارية تُرسل فقط إن كُتبت (حتى لا تُمسح بيانات قديمة)
++      const payload: Record<string, string> = { phone, code: codeDigits };
+       if (nameDraft.trim()) payload.name = nameDraft.trim();
+       if (bankDraft.trim()) payload.bankAccount = bankDraft.replace(/\s+/g, "");
+       if (vehicleDraft.trim()) payload.vehicleType = vehicleDraft.trim();
+@@ -468,7 +350,6 @@ export default function DriverDashboard() {
+         body: JSON.stringify(payload),
+       });
+       const data = await res.json().catch(() => ({}));
+-
+       if (!res.ok || !data.ok || !data.driver) {
+         setAuthError(data.error || "فشل التحقق — حاول مرة أخرى");
+         return;
+@@ -483,12 +364,13 @@ export default function DriverDashboard() {
+         isOnline: data.driver.isOnline !== false,
+       };
+       syncProfile(p);
+-      localStorage.setItem("driver_token", data.token);
++      localStorage.setItem(DRIVER_TOKEN_KEY, data.token);
+       localStorage.setItem("driver_id", String(p.id));
+       localStorage.setItem("driver_phone", p.phone);
+       setIsAvailable(p.isOnline);
+       setStage("ready");
+       setCodeDigits("");
++      knownIdsRef.current = new Set();
+       locateDriver();
+     } catch {
+       setAuthError("خطأ في الاتصال بالخادم");
+@@ -498,33 +380,22 @@ export default function DriverDashboard() {
+   };
+ 
+   const handleLogout = () => {
+-    localStorage.removeItem("driver_token");
++    localStorage.removeItem(DRIVER_TOKEN_KEY);
+     localStorage.removeItem("driver_id");
+     localStorage.removeItem("driver_phone");
+-    syncProfile(null);
+-    syncCurrentRide(null);
+-    setAvailableRides([]);
+-    setStage("login");
+-    setCodeDigits("");
+-    setAuthInfo(null);
+-    setPreviewCode(null);
+-    setEditingProfile(false);
+-    prevCountRef.current = 0;
++    handleLogoutLocal();
+   };
+ 
+   // ── تحديث الملف ───────────────────────────────────────────────
+   const saveProfile = async () => {
+-    const token = localStorage.getItem("driver_token");
++    const token = tokenOf();
+     if (!token) return;
+     setBusy(true);
+     setAuthError(null);
+     try {
+       const res = await fetch("/api/driver/profile", {
+         method: "PATCH",
+-        headers: {
+-          "Content-Type": "application/json",
+-          "x-driver-token": token,
+-        },
++        headers: { "Content-Type": "application/json", "x-driver-token": token },
+         body: JSON.stringify({
+           name: nameDraft,
+           bankAccount: bankDraft.replace(/\s+/g, ""),
+@@ -533,14 +404,15 @@ export default function DriverDashboard() {
+       });
+       const data = await res.json().catch(() => ({}));
+       if (res.ok && data.ok && data.driver) {
+-        syncProfile({
+-          id: Number(data.driver.id),
+-          phone: data.driver.phone,
+-          name: data.driver.name || "",
+-          bankAccount: data.driver.bankAccount || null,
+-          vehicleType: data.driver.vehicleType || null,
+-          isOnline: data.driver.isOnline !== false,
+-        });
++        const p = profileRef.current;
++        if (p) {
++          syncProfile({
++            ...p,
++            name: data.driver.name || p.name,
++            bankAccount: data.driver.bankAccount ?? p.bankAccount,
++            vehicleType: data.driver.vehicleType ?? p.vehicleType,
++          });
++        }
+         setEditingProfile(false);
+         setAuthInfo("تم حفظ بياناتك ✅");
+       } else {
+@@ -558,8 +430,8 @@ export default function DriverDashboard() {
+     const p = profileRef.current;
+     if (!p) return;
+     const next = !isAvailable;
+-    const token = localStorage.getItem("driver_token");
+-    setIsAvailable(next); // متفائل
++    const token = tokenOf();
++    setIsAvailable(next);
+     try {
+       if (token) {
+         const res = await fetch("/api/driver/profile", {
+@@ -573,17 +445,18 @@ export default function DriverDashboard() {
+           return;
+         }
+       }
+-      setIsAvailable(!next); // تراجع
++      setIsAvailable(!next);
+       setAuthError("تعذر حفظ الحالة على الخادم");
+     } catch {
+       setIsAvailable(!next);
+     }
+   };
+ 
+-  // ── القبول (شرطي — يمنع القبول المزدوج) ───────────────────────
++  // ── القبول (شرطي عبر الخادم — يمنع المزدوج) ───────────────────
+   const acceptRide = async (ride: Ride) => {
+     const p = profileRef.current;
+-    if (!p) return;
++    const token = tokenOf();
++    if (!p || !token) return;
+     if (acceptingRef.current) return;
+     if (currentRideRef.current) {
+       alert("عندك مشوار حالي — أنهيه أولاً قبل ما تقبل طلب جديد");
+@@ -596,61 +469,49 @@ export default function DriverDashboard() {
+ 
+     acceptingRef.current = true;
+     try {
+-      const { data, error } = await supabase
+-        .from("rides")
+-        .update({
+-          status: "accepted",
+-          driver_id: p.id, // integer FK → drivers(id)
+-          driver_phone: p.phone,
+-        })
+-        .eq("id", ride.id)
+-        .eq("status", "pending")
+-        .select()
+-        .maybeSingle();
+-
+-      if (error || !data) {
+-        setAvailableRides((prev) => prev.filter((r) => !sameId(r.id, ride.id)));
+-        alert("الطلب ده اتقبل من سائق تاني قبل ما تدوس — جرب طلب تاني");
++      const res = await fetch(`/api/rides/${ride.id}/accept`, {
++        method: "POST",
++        headers: { "x-driver-token": token },
++      });
++      const data = await res.json().catch(() => ({}));
++      if (res.status === 409 || !res.ok) {
++        alert(data.error || "تعذر قبول الطلب");
++        void pollRides();
+         return;
+       }
+-
+-      syncCurrentRide(data as Ride);
++      if (data.ride) syncCurrentRide(data.ride as Ride);
+       setActiveTab("current");
++    } catch {
++      alert("خطأ في الاتصال بالخادم");
+     } finally {
+       acceptingRef.current = false;
+     }
+   };
+ 
+-  // ── إنهاء المشوار (لمشواري أنا فقط) ───────────────────────────
++  // ── إنهاء المشوار ─────────────────────────────────────────────
+   const completeRide = async (rideId: string | number) => {
+-    const p = profileRef.current;
+-    if (!p || acceptingRef.current) return;
+-
+-    // محاولة 1: عبر driver_id (الجديد) — محاولة 2: عبر driver_phone (رحلات قديمة)
+-    const attempt = async (filter: (q: any) => any) => {
+-      const { error } = await filter(
+-        supabase
+-          .from("rides")
+-          .update({ status: "completed" })
+-          .eq("id", rideId)
+-          .eq("status", "accepted")
+-      );
+-      return error;
+-    };
+-
+-    let err =
+-      (await attempt((q: any) => q.eq("driver_id", p.id))) ||
+-      (await attempt((q: any) => q.eq("driver_phone", p.phone)));
+-
+-    if (err) {
+-      alert("خطأ أثناء إنهاء المشوار: " + err.message);
+-      return;
++    const token = tokenOf();
++    if (!token || acceptingRef.current) return;
++    setBusy(true);
++    try {
++      const res = await fetch(`/api/rides/${rideId}/complete`, {
++        method: "POST",
++        headers: { "x-driver-token": token },
++      });
++      const data = await res.json().catch(() => ({}));
++      if (!res.ok) {
++        alert(data.error || "تعذر إنهاء المشوار");
++        return;
++      }
++      alert("تم إنهاء المشوار 🏁");
++      syncCurrentRide(null);
++      setActiveTab("available");
++      void pollRides();
++    } catch {
++      alert("خطأ في الاتصال بالخادم");
++    } finally {
++      setBusy(false);
+     }
+-    alert("تم إنهاء المشوار 🏁");
+-    syncCurrentRide(null);
+-    setActiveTab("available");
+-    prevCountRef.current = 0;
+-    void fetchRides();
+   };
+ 
+   const maskedBank = profile?.bankAccount ? maskAccount(profile.bankAccount) : "—";
+@@ -659,13 +520,11 @@ export default function DriverDashboard() {
+   return (
+     <div className="min-h-screen bg-[#161b22] text-slate-100 p-4 flex flex-col justify-between w-full min-w-full">
+       <div className="w-full max-w-xl mx-auto flex-1 flex flex-col justify-between space-y-4">
+-        {/* الشريط العلوي */}
+         <header className="flex justify-between items-center pt-2 pb-1">
+           <div className="flex items-center gap-2">
+             <span className="text-2xl">🚖</span>
+             <span className="font-extrabold text-xl text-white tracking-wide">لوحة السائق</span>
+           </div>
+-
+           <button
+             type="button"
+             onClick={() => { window.location.href = "/"; }}
+@@ -712,7 +571,6 @@ export default function DriverDashboard() {
+                     />
+                   </div>
+                 </div>
+-
+                 <button
+                   type="submit"
+                   disabled={busy}
+@@ -728,7 +586,6 @@ export default function DriverDashboard() {
+                     ✅ {authInfo}
+                   </p>
+                 )}
+-
+                 <div>
+                   <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">🔢 رمز التحقق:</label>
+                   <input
+@@ -750,8 +607,6 @@ export default function DriverDashboard() {
+                     </p>
+                   )}
+                 </div>
+-
+-                {/* بيانات اختيارية تُملأ مرة واحدة عند التسجيل */}
+                 <div className="grid grid-cols-2 gap-3">
+                   <div>
+                     <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">الاسم:</label>
+@@ -774,7 +629,6 @@ export default function DriverDashboard() {
+                     />
+                   </div>
+                 </div>
+-
+                 <div>
+                   <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">🏦 رقم الحساب البنكي:</label>
+                   <input
+@@ -785,7 +639,6 @@ export default function DriverDashboard() {
+                     className="w-full bg-[#0d1117] border border-slate-700 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-right focus:border-amber-500"
+                   />
+                 </div>
+-
+                 <button
+                   type="submit"
+                   disabled={busy}
+@@ -793,7 +646,6 @@ export default function DriverDashboard() {
+                 >
+                   {busy ? "جاري التحقق..." : "تحقق وادخل اللوحة ✅"}
+                 </button>
+-
+                 <button
+                   type="button"
+                   onClick={() => { setStage("login"); setAuthInfo(null); setPreviewCode(null); setAuthError(null); }}
+@@ -812,7 +664,7 @@ export default function DriverDashboard() {
+           </div>
+         ) : showDriver ? (
+           <>
+-            {/* ══════════ شريط معلومات السائق (حساب مقنّع) ══════════ */}
++            {/* شريط معلومات السائق */}
+             <div className="flex items-center justify-between bg-[#0d1117] p-3 rounded-2xl border border-slate-800 gap-2">
+               <div className="text-xs text-slate-300 space-y-1 min-w-0">
+                 <div className="truncate">
+@@ -821,9 +673,7 @@ export default function DriverDashboard() {
+                 </div>
+                 <div className="flex items-center gap-1.5 flex-wrap">
+                   <span>🏦 الحساب:</span>
+-                  <span className="font-mono text-amber-400 font-bold" dir="ltr">
+-                    {maskedBank}
+-                  </span>
++                  <span className="font-mono text-amber-400 font-bold" dir="ltr">{maskedBank}</span>
+                   {profile.bankAccount && (
+                     <button
+                       type="button"
+@@ -932,12 +782,12 @@ export default function DriverDashboard() {
+               <div className="flex items-center justify-between bg-[#0d1117] p-3 rounded-2xl border border-slate-800">
+                 <span className="text-xs text-slate-300">
+                   {coords
+-                    ? `📍 موقعك مفعّل — نعرض الطلبات الأقرب خلال ${DEFAULT_SEARCH_RADIUS_KM} كم`
++                    ? "📍 موقعك مفعّل — نعرض الطلبات الأقرب خلال 10 كم"
+                     : geoMsg || "📍 حدد موقعك لعرض الطلبات الأقرب"}
+                 </span>
+                 <button
+                   type="button"
+-                  onClick={locateDriver}
++                  onClick={() => locateDriver(true)}
+                   disabled={locating}
+                   className="text-[10px] bg-slate-800 hover:bg-slate-700 text-amber-400 px-2.5 py-1.5 rounded-lg border border-slate-700 font-bold transition disabled:opacity-50"
+                 >
+@@ -948,7 +798,7 @@ export default function DriverDashboard() {
+ 
+             {/* الخريطة */}
+             <div className="w-full h-44 rounded-2xl overflow-hidden border border-slate-700/60 shadow-xl shrink-0">
+-              <Map pickupName={currentRide ? currentRide.pickup_location : "موقعي الحالي"} />
++              <Map pickupName={currentRide ? currentRide.pickupLocation : "موقعي الحالي"} />
+             </div>
+ 
+             {/* التبويبات */}
+@@ -990,34 +840,34 @@ export default function DriverDashboard() {
+                   availableRides.map((ride) => (
+                     <div key={ride.id} className="bg-[#0d1117] border border-slate-700/80 rounded-2xl p-4 space-y-3 shadow-lg">
+                       <div className="flex justify-between items-center text-xs border-b border-slate-800 pb-2.5">
+-                        <span className="font-bold text-white text-sm">👤 {ride.passenger_name}</span>
++                        <span className="font-bold text-white text-sm">👤 {ride.passengerName}</span>
+                         <div className="flex items-center gap-1.5">
+                           {ride.distanceKm !== null && ride.distanceKm !== undefined ? (
+                             <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-lg border border-emerald-500/20 font-bold text-[10px]">
+-                              📍 {formatKm(ride.distanceKm)}
++                              📍 {ride.distanceKm < 1 ? `${Math.max(1, Math.round(ride.distanceKm * 1000))} م` : `${ride.distanceKm.toFixed(1)} كم`}
+                             </span>
+                           ) : null}
+                           <span className="bg-amber-500/10 text-amber-400 px-2.5 py-1 rounded-lg border border-amber-500/20 font-bold">
+-                            {serviceTypeLabel(ride.service_type)}
++                            {serviceTypeLabel(ride.serviceType)}
+                           </span>
+                         </div>
+                       </div>
+                       <div className="text-xs space-y-1.5 text-slate-300">
+-                        <div>📍 من: <span className="text-white font-semibold">{ride.pickup_location}</span></div>
++                        <div>📍 من: <span className="text-white font-semibold">{ride.pickupLocation}</span></div>
+                         <div>🏁 إلى: <span className="text-white font-semibold">{ride.destination}</span></div>
+-                        {ride.offered_price ? (
++                        {ride.offeredPrice ? (
+                           <div className="text-amber-400 font-bold font-mono text-sm">
+-                            💰 السعر المقترح: <span style={{ direction: "ltr", display: "inline-block" }}>{formatPrice(ride.offered_price)} ج.س</span>
++                            💰 السعر المقترح: <span style={{ direction: "ltr", display: "inline-block" }}>{formatPrice(ride.offeredPrice)} ج.س</span>
+                           </div>
+                         ) : null}
+                         <div className="text-slate-400 flex items-center justify-between pt-1">
+                           <span>📞 الهاتف:</span>
+                           <a
+-                            href={`tel:${ride.phone_number}`}
++                            href={`tel:${ride.phoneNumber}`}
+                             className="font-mono text-amber-400 hover:underline font-bold text-sm"
+                             style={{ direction: "ltr" }}
+                           >
+-                            {ride.phone_number}
++                            {ride.phoneNumber}
+                           </a>
+                         </div>
+                       </div>
+@@ -1042,37 +892,37 @@ export default function DriverDashboard() {
+                   <div className="bg-[#0d1117] border border-slate-700/80 rounded-2xl p-4 space-y-3.5 shadow-lg">
+                     <div className="flex justify-between items-center text-xs border-b border-slate-800 pb-2.5">
+                       <span className="font-bold text-emerald-400 text-sm">🟢 مشوار جاري (مشواري أنا)</span>
+-                      <span className="font-bold text-white text-sm">👤 {currentRide.passenger_name}</span>
++                      <span className="font-bold text-white text-sm">👤 {currentRide.passengerName}</span>
+                     </div>
+                     <div className="text-xs space-y-1.5 text-slate-300">
+-                      <div>📍 من: <span className="text-white font-semibold">{currentRide.pickup_location}</span></div>
++                      <div>📍 من: <span className="text-white font-semibold">{currentRide.pickupLocation}</span></div>
+                       <div>🏁 إلى: <span className="text-white font-semibold">{currentRide.destination}</span></div>
+-                      {currentRide.offered_price ? (
++                      {currentRide.offeredPrice ? (
+                         <div className="text-amber-400 font-bold font-mono text-sm">
+-                          💰 السعر المقترح: <span style={{ direction: "ltr", display: "inline-block" }}>{formatPrice(currentRide.offered_price)} ج.س</span>
++                          💰 السعر المقترح: <span style={{ direction: "ltr", display: "inline-block" }}>{formatPrice(currentRide.offeredPrice)} ج.س</span>
+                         </div>
+                       ) : null}
+                       <div className="text-slate-400 flex items-center justify-between pt-1">
+                         <span>📞 الهاتف:</span>
+                         <a
+-                          href={`tel:${currentRide.phone_number}`}
++                          href={`tel:${currentRide.phoneNumber}`}
+                           className="font-mono text-amber-400 hover:underline font-bold text-sm"
+                           style={{ direction: "ltr" }}
+                         >
+-                          {currentRide.phone_number}
++                          {currentRide.phoneNumber}
+                         </a>
+                       </div>
+                     </div>
+ 
+                     <div className="grid grid-cols-2 gap-2 pt-1">
+                       <a
+-                        href={`tel:${currentRide.phone_number}`}
++                        href={`tel:${currentRide.phoneNumber}`}
+                         className="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-center text-xs font-bold rounded-xl border border-slate-700 transition"
+                       >
+                         اتصال بالزبون 📞
+                       </a>
+                       <a
+-                        href={`https://wa.me/${currentRide.phone_number.replace("+", "")}`}
++                        href={`https://wa.me/${currentRide.phoneNumber.replace("+", "")}`}
+                         target="_blank"
+                         rel="noreferrer"
+                         className="py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 text-center text-xs font-bold rounded-xl border border-emerald-500/30 transition"
+@@ -1083,7 +933,7 @@ export default function DriverDashboard() {
+ 
+                     <button
+                       onClick={() => completeRide(currentRide.id)}
+-                      disabled={acceptingRef.current}
++                      disabled={busy || acceptingRef.current}
+                       className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs rounded-xl shadow-lg transition disabled:opacity-50"
+                     >
+                       إكمال / إنهاء المشوار 🏁
+diff --git a/src/app/page.tsx b/src/app/page.tsx
+index 9ebac15..1215606 100644
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -2,7 +2,6 @@
+ 
+ import { useState, useEffect, useRef, useCallback } from "react";
+ import Map from "@/components/Map";
+-import { supabase } from "@/lib/supabase";
+ import {
+   normalizeSudanesePhone,
+   formatPrice,
+@@ -10,26 +9,53 @@ import {
+ } from "@/lib/format";
+ import { SERVICE_TYPES } from "@/lib/constants";
+ 
+-/** مهلة البحث عن سائق بالثواني — بعدها تظهر خيارات رفع السعر/الإلغاء */
++/** مهلة البحث بالثواني */
+ const SEARCH_TIMEOUT_SECONDS = 120;
+-/** نسبة زيادة السعر المقترح */
++/** نسبة زيادة السعر */
+ const PRICE_RAISE_RATIO = 0.2;
++/** فترة استطلاع حالة الرحلة (بعد تفعيل RLS في المرحلة 3) */
++const POLL_MS = 4000;
++
++/* ════════════════════════════════════════════════════════════════
++ * صفحة الراكب — المرحلة 3:
++ * كل العمليات عبر مسارات الخادم (لا وصول مباشر لـ Supabase من المتصفح):
++ * POST /api/rides (إنشاء) ثم GET /api/rides/[id] باستطلاع دوري
++ * وcancel/raise عبر المسارات — مع رمز راكب (riderToken) في localStorage.
++ * ════════════════════════════════════════════════════════════════ */
++
++interface RideState {
++  id: number | string;
++  status: string;
++  serviceType: string;
++  pickupLocation: string;
++  destination: string;
++  offeredPrice: number | null;
++  driverId: number | null;
++  driverPhone: string | null;
++  createdAt: string | null;
++}
++
++const RIDE_ID_KEY = "active_ride_id";
++const RIDE_TOKEN_KEY = "rider_token";
+ 
+ export default function PassengerHome() {
+   const [passengerName, setPassengerName] = useState("");
+-  const [phoneNumber, setPhoneNumber] = useState(""); // أرقام فقط بدون +249 أثناء الكتابة
++  const [phoneNumber, setPhoneNumber] = useState("");
+   const [pickupLocation, setPickupLocation] = useState("");
+   const [destination, setDestination] = useState("");
+   const [offeredPrice, setOfferedPrice] = useState("");
+   const [serviceType, setServiceType] = useState("ركشة ركاب");
+   const [loading, setLoading] = useState(false);
+-  const [activeRide, setActiveRide] = useState<any>(null);
++  const [errorMsg, setErrorMsg] = useState<string | null>(null);
++  const [activeRide, setActiveRide] = useState<RideState | null>(null);
+   const [pickupCoords, setPickupCoords] = useState<[number, number] | null>(null);
+ 
+-  // عدّاد مهلة البحث
+   const [searchSecondsLeft, setSearchSecondsLeft] = useState(SEARCH_TIMEOUT_SECONDS);
+   const [searchTimedOut, setSearchTimedOut] = useState(false);
+   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
++  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
++  const [rideId, setRideId] = useState<string | null>(null);
++  const [riderToken, setRiderToken] = useState<string | null>(null);
+ 
+   const clearSearchTimer = useCallback(() => {
+     if (timerRef.current) {
+@@ -38,109 +64,75 @@ export default function PassengerHome() {
+     }
+   }, []);
+ 
+-  // 1. استرجاع البيانات والتحقق من المشوار النشط برقم ID المشوار
+-  useEffect(() => {
+-    if (typeof window !== "undefined") {
+-      const savedName = localStorage.getItem("passenger_name");
+-      const savedPhone = localStorage.getItem("passenger_phone");
+-      const savedRideId = localStorage.getItem("active_ride_id");
+-
+-      if (savedName) setPassengerName(savedName);
+-      if (savedPhone) {
+-        // نحتفظ في الحالة بالأرقام المحلية فقط (912345678) مهما كانت الصيغة المخزنة قديماً
+-        const normalized = normalizeSudanesePhone(savedPhone);
+-        if (normalized) setPhoneNumber(normalized.replace("+249", ""));
+-        else setPhoneNumber(savedPhone.replace(/\D/g, ""));
++  /** استطلاع حالة الرحلة من الخادم */
++  const pollRide = useCallback(async () => {
++    if (!rideId || !riderToken) return;
++    try {
++      const res = await fetch(`/api/rides/${rideId}`, {
++        headers: { "x-rider-token": riderToken },
++        cache: "no-store",
++      });
++      const data = await res.json().catch(() => ({}));
++      if (!res.ok || !data.ok) {
++        if (res.status === 404 || res.status === 403) {
++          localStorage.removeItem(RIDE_ID_KEY);
++          localStorage.removeItem(RIDE_TOKEN_KEY);
++          setRideId(null);
++          setRiderToken(null);
++          setActiveRide(null);
++        }
++        return;
+       }
+-
+-      if (savedRideId) {
+-        fetchRideById(savedRideId);
+-      } else if (savedPhone) {
+-        checkExistingRideByPhone(savedPhone);
++      const ride = data.ride as RideState;
++      setActiveRide(ride);
++      if (ride.status === "cancelled") {
++        localStorage.removeItem(RIDE_ID_KEY);
++        localStorage.removeItem(RIDE_TOKEN_KEY);
+       }
++    } catch {
++      /* تجاهل أخطاء الشبكة المؤقتة */
+     }
+-  }, []);
++  }, [rideId, riderToken]);
+ 
+-  // جلب المشوار مباشرة برقم الـ ID المخزن
+-  const fetchRideById = async (rideId: string) => {
+-    const { data } = await supabase
+-      .from("rides")
+-      .select("*")
+-      .eq("id", rideId)
+-      .maybeSingle();
+-
+-    if (data) {
+-      if (data.status === "cancelled" || data.status === "completed") {
+-        localStorage.removeItem("active_ride_id");
+-        setActiveRide(data.status === "completed" ? data : null);
+-        return;
+-      }
+-      setActiveRide(data);
+-    } else {
+-      localStorage.removeItem("active_ride_id");
++  // 1) استرجاع الجلسة عند فتح الصفحة
++  useEffect(() => {
++    if (typeof window === "undefined") return;
++    const savedName = localStorage.getItem("passenger_name");
++    const savedPhone = localStorage.getItem("passenger_phone");
++    const savedRideId = localStorage.getItem(RIDE_ID_KEY);
++    const savedToken = localStorage.getItem(RIDE_TOKEN_KEY);
++
++    if (savedName) setPassengerName(savedName);
++    if (savedPhone) {
++      const norm = normalizeSudanesePhone(savedPhone);
++      setPhoneNumber(norm ? norm.replace("+249", "") : savedPhone.replace(/\D/g, ""));
+     }
+-  };
+-
+-  // جلب آخر مشوار برقم الهاتف في حال عدم وجود ID مخزن
+-  const checkExistingRideByPhone = async (phone: string) => {
+-    const normalized = normalizeSudanesePhone(phone);
+-    if (!normalized) return;
+-    const { data } = await supabase
+-      .from("rides")
+-      .select("*")
+-      .eq("phone_number", normalized)
+-      .order("created_at", { ascending: false })
+-      .limit(1)
+-      .maybeSingle();
+-
+-    if (data && data.status !== "completed" && data.status !== "cancelled") {
+-      setActiveRide(data);
+-      localStorage.setItem("active_ride_id", data.id);
++    if (savedRideId && savedToken) {
++      setRideId(savedRideId);
++      setRiderToken(savedToken);
+     }
+-  };
++  }, []);
+ 
+-  // 2. الاستماع الفوري المباشر لتغييرات المشوار (قبول / إنهاء)
++  // 2) استطلاع دوري كلما وُجدت رحلة
+   useEffect(() => {
+-    if (!activeRide?.id) return;
+-
+-    const channel = supabase
+-      .channel(`passenger-ride-${activeRide.id}`)
+-      .on(
+-        "postgres_changes",
+-        {
+-          event: "UPDATE",
+-          schema: "public",
+-          table: "rides",
+-          filter: `id=eq.${activeRide.id}`,
+-        },
+-        (payload) => {
+-          const updatedRide = payload.new;
+-          // عند الإلغاء من جهة أخرى (أو الإكمال) ننظّف التخزين
+-          if (updatedRide.status === "cancelled") {
+-            localStorage.removeItem("active_ride_id");
+-          }
+-          setActiveRide(updatedRide);
+-        }
+-      )
+-      .subscribe();
+-
++    if (!rideId || !riderToken) return;
++    void pollRide();
++    pollRef.current = setInterval(pollRide, POLL_MS);
+     return () => {
+-      supabase.removeChannel(channel);
++      if (pollRef.current) clearInterval(pollRef.current);
+     };
+-  }, [activeRide?.id]);
++  }, [rideId, riderToken, pollRide]);
+ 
+-  // 3. عدّاد مهلة البحث: يشتغل فقط والمشوار pending
++  // 3) عدّاد مهلة البحث
+   useEffect(() => {
+-    if (activeRide?.status !== "pending" || !activeRide?.id) {
++    if (activeRide?.status !== "pending") {
+       clearSearchTimer();
+       setSearchSecondsLeft(SEARCH_TIMEOUT_SECONDS);
+       setSearchTimedOut(false);
+       return;
+     }
+-
+     setSearchSecondsLeft(SEARCH_TIMEOUT_SECONDS);
+     setSearchTimedOut(false);
+-
+     timerRef.current = setInterval(() => {
+       setSearchSecondsLeft((prev) => {
+         if (prev <= 1) {
+@@ -152,130 +144,137 @@ export default function PassengerHome() {
+         return prev - 1;
+       });
+     }, 1000);
+-
+     return clearSearchTimer;
+   }, [activeRide?.id, activeRide?.status, clearSearchTimer]);
+ 
+-  // تنظيف العداد عند مغادرة الصفحة
+   useEffect(() => clearSearchTimer, [clearSearchTimer]);
+ 
+-  /** رفع السعر المقترح 20% (مع إعادة تشغيل مهلة البحث) */
++  /** رفع السعر 20% عبر الخادم */
+   const handleRaisePrice = async () => {
+-    if (!activeRide || activeRide.status !== "pending") return;
+-    const current = Number(activeRide.offered_price);
+-    if (!Number.isFinite(current) || current <= 0) {
+-      alert("حدّد سعراً مقترحاً أولاً في نموذج الطلب لتتمكن من زيادته");
+-      return;
+-    }
+-
+-    const newPrice = Math.round(current * (1 + PRICE_RAISE_RATIO));
+-    const { error } = await supabase
+-      .from("rides")
+-      .update({ offered_price: newPrice })
+-      .eq("id", activeRide.id);
+-
+-    if (error) {
+-      alert("تعذر رفع السعر دلوقتي — حاول مرة أخرى");
+-      return;
++    if (!rideId || !riderToken || activeRide?.status !== "pending") return;
++    setLoading(true);
++    setErrorMsg(null);
++    try {
++      const res = await fetch(`/api/rides/${rideId}/raise`, {
++        method: "POST",
++        headers: { "x-rider-token": riderToken },
++      });
++      const data = await res.json().catch(() => ({}));
++      if (res.ok && data.ok) {
++        setActiveRide((prev) => (prev ? { ...prev, offeredPrice: data.price } : prev));
++        setSearchSecondsLeft(SEARCH_TIMEOUT_SECONDS);
++        setSearchTimedOut(false);
++        alert(`تم رفع السعر المقترح إلى ${formatPrice(data.price)} ج.س`);
++      } else {
++        alert(data.error || "تعذر رفع السعر");
++      }
++    } catch {
++      alert("خطأ في الاتصال بالخادم");
++    } finally {
++      setLoading(false);
+     }
+-
+-    setActiveRide((prev: any) =>
+-      prev ? { ...prev, offered_price: newPrice } : prev
+-    );
+-    setSearchSecondsLeft(SEARCH_TIMEOUT_SECONDS);
+-    setSearchTimedOut(false);
+-    alert(`تم رفع السعر المقترح إلى ${formatPrice(newPrice)} ج.س`);
+   };
+ 
+   const handleCreateRide = async (e: React.FormEvent) => {
+     e.preventDefault();
++    setErrorMsg(null);
+ 
+-    // تنظيف المدخلات النصية
+     const cleanName = passengerName.trim().replace(/\s+/g, " ");
+     const cleanPickup = pickupLocation.trim();
+     const cleanDestination = destination.trim();
+     if (!cleanName || !cleanPickup || !cleanDestination) {
+-      alert("فضلاً املأ الاسم ومكان التحرك والوجهة");
++      setErrorMsg("فضلاً املأ الاسم ومكان التحرك والوجهة");
+       return;
+     }
+ 
+-    // تحقق أدق من رقم الهاتف السوداني (يقبل 0912345678 / 912345678 / +249912345678)
+     const fullPhone = normalizeSudanesePhone(phoneNumber);
+     if (!fullPhone) {
+-      alert(
+-        "رقم الهاتف غير صحيح — أدخل 9 أرقام سودانية تبدأ بـ 9 (مثال: 0912345678)"
+-      );
++      setErrorMsg("رقم الهاتف غير صحيح — أدخل 9 أرقام سودانية تبدأ بـ 9 (مثال: 0912345678)");
+       return;
+     }
+ 
+     const numericPrice = offeredPrice.trim() === "" ? null : Number(offeredPrice);
+     if (numericPrice !== null && (!Number.isFinite(numericPrice) || numericPrice < 0)) {
+-      alert("السعر المقترح غير صحيح — أدخل مبلغاً موجباً أو اتركه فارغاً");
++      setErrorMsg("السعر المقترح غير صحيح — أدخل مبلغاً موجباً أو اتركه فارغاً");
+       return;
+     }
+ 
+     setLoading(true);
+-
+-    if (typeof window !== "undefined") {
+-      localStorage.setItem("passenger_name", cleanName);
+-      localStorage.setItem("passenger_phone", fullPhone);
+-    }
+-
+-    const { data, error } = await supabase
+-      .from("rides")
+-      .insert([
+-        {
+-          passenger_name: cleanName,
+-          phone_number: fullPhone,
+-          pickup_location: cleanPickup,
++    try {
++      const res = await fetch("/api/rides", {
++        method: "POST",
++        headers: { "Content-Type": "application/json" },
++        body: JSON.stringify({
++          passengerName: cleanName,
++          phone: fullPhone,
++          pickupLocation: cleanPickup,
+           destination: cleanDestination,
+-          offered_price: numericPrice,
+-          service_type: serviceType,
+-          status: "pending",
+-          // إحداثيات مكان التحرك (من الخريطة/GPS) — أساس فلتر «الأقرب» للسائقين
+-          pickup_lat: pickupCoords ? pickupCoords[0] : null,
+-          pickup_lng: pickupCoords ? pickupCoords[1] : null,
+-        },
+-      ])
+-      .select()
+-      .single();
+-
+-    setLoading(false);
+-
+-    if (error) {
+-      alert("حدث خطأ أثناء إرسال الطلب: " + error.message);
+-    } else if (data) {
+-      setActiveRide(data);
+-      localStorage.setItem("active_ride_id", data.id);
++          offeredPrice: numericPrice,
++          serviceType,
++          pickupLat: pickupCoords ? pickupCoords[0] : null,
++          pickupLng: pickupCoords ? pickupCoords[1] : null,
++        }),
++      });
++      const data = await res.json().catch(() => ({}));
++      if (!res.ok || !data.ok) {
++        setErrorMsg(data.error || "حدث خطأ أثناء إرسال الطلب");
++        return;
++      }
++
++      if (typeof window !== "undefined") {
++        localStorage.setItem("passenger_name", cleanName);
++        localStorage.setItem("passenger_phone", fullPhone);
++        localStorage.setItem(RIDE_ID_KEY, String(data.ride.id));
++        localStorage.setItem(RIDE_TOKEN_KEY, data.riderToken);
++      }
++      setRideId(String(data.ride.id));
++      setRiderToken(data.riderToken);
++      setActiveRide(data.ride as RideState);
++      setErrorMsg(null);
++    } catch {
++      setErrorMsg("خطأ في الاتصال بالخادم");
++    } finally {
++      setLoading(false);
+     }
+   };
+ 
+-  // إلغاء الطلب فعلياً في قاعدة البيانات (مش بس من الشاشة) ثم بدء طلب جديد
++  /** إلغاء عبر الخادم (برمز الراكب) */
+   const handleStartNewRide = async () => {
+     if (!activeRide) return;
+ 
+     if (activeRide.status === "pending" || activeRide.status === "accepted") {
++      if (!rideId || !riderToken) return;
+       const ok = window.confirm("متأكد إنك تبي تلغي المشوار؟");
+       if (!ok) return;
+-
+-      const { error } = await supabase
+-        .from("rides")
+-        .update({ status: "cancelled" })
+-        .eq("id", activeRide.id);
+-
+-      if (error) {
+-        alert("تعذر إلغاء الطلب دلوقتي — جرب تاني");
++      setLoading(true);
++      try {
++        const res = await fetch(`/api/rides/${rideId}/cancel`, {
++          method: "POST",
++          headers: { "x-rider-token": riderToken },
++        });
++        const data = await res.json().catch(() => ({}));
++        if (!res.ok || !data.ok) {
++          alert(data.error || "تعذر إلغاء الطلب — جرب تاني");
++          return;
++        }
++      } catch {
++        alert("تعذر إلغاء الطلب — جرب تاني");
+         return;
++      } finally {
++        setLoading(false);
+       }
+     }
+ 
+-    localStorage.removeItem("active_ride_id");
++    localStorage.removeItem(RIDE_ID_KEY);
++    localStorage.removeItem(RIDE_TOKEN_KEY);
++    setRideId(null);
++    setRiderToken(null);
+     setActiveRide(null);
+     setSearchSecondsLeft(SEARCH_TIMEOUT_SECONDS);
+     setSearchTimedOut(false);
+   };
+ 
+-  const formattedPrice = formatPrice(activeRide?.offered_price);
++  const formattedPrice = formatPrice(activeRide?.offeredPrice);
+ 
+   return (
+     <div className="min-h-screen bg-[#161b22] text-slate-100 p-4 flex flex-col justify-between w-full min-w-full">
+@@ -296,7 +295,7 @@ export default function PassengerHome() {
+           </button>
+         </header>
+ 
+-        {/* الخريطة — دوس عليها لتحديد مكانك */}
++        {/* الخريطة */}
+         <div className="w-full h-52 rounded-2xl overflow-hidden border border-slate-700/60 shadow-xl shrink-0">
+           <Map
+             pickupName={pickupLocation || "موقعي الحالي"}
+@@ -308,9 +307,15 @@ export default function PassengerHome() {
+           />
+         </div>
+ 
+-        {/* كارت النموذج أو حالة الطلب */}
++        {/* النموذج أو حالة الطلب */}
+         {!activeRide ? (
+           <form onSubmit={handleCreateRide} className="space-y-4 flex-1 flex flex-col justify-center">
++            {errorMsg && (
++              <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5 leading-relaxed">
++                ⚠️ {errorMsg}
++              </p>
++            )}
++
+             <div className="grid grid-cols-2 gap-3">
+               <div>
+                 <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">الاسم:</label>
+@@ -351,7 +356,6 @@ export default function PassengerHome() {
+                   <span>🇸🇩</span>
+                   <span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>+249</span>
+                 </div>
+-
+                 <input
+                   type="tel"
+                   required
+@@ -423,7 +427,6 @@ export default function PassengerHome() {
+                 <h3 className="text-base font-bold text-amber-400">جاري البحث عن سائق...</h3>
+                 <p className="text-xs text-slate-400">تم نشر مشوارك للسائقين القريبين منك، يرجى الانتظار</p>
+ 
+-                {/* عدّاد مهلة البحث */}
+                 <div
+                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-mono font-bold border ${
+                     searchTimedOut
+@@ -448,42 +451,46 @@ export default function PassengerHome() {
+                   className="w-full py-3 bg-amber-500/15 hover:bg-amber-500/25 active:scale-[0.99] text-amber-400 border border-amber-500/30 font-extrabold text-xs rounded-xl transition disabled:opacity-50"
+                 >
+                   🔥 زوّد السعر ٢٠٪
+-                  {formattedPrice ? ` (يصير ${formatPrice(Math.round(Number(activeRide.offered_price) * 1.2))} ج.س)` : ""}
++                  {formattedPrice
++                    ? ` (يصير ${formatPrice(Math.round(Number(activeRide.offeredPrice) * 1.2))} ج.س)`
++                    : ""}
+                 </button>
+               </div>
+             ) : activeRide.status === "accepted" ? (
+               <div className="text-center space-y-2">
+                 <span className="text-3xl inline-block">🎉</span>
+                 <h3 className="text-base font-bold text-emerald-400">تم قبول طلبك! السائق في الطريق إليك</h3>
+-                {activeRide.driver_phone && (
++                {activeRide.driverPhone && (
+                   <div className="pt-2">
+                     <p className="text-xs text-slate-400 mb-1">رقم هاتف السائق:</p>
+                     <a
+-                      href={`tel:${activeRide.driver_phone}`}
++                      href={`tel:${activeRide.driverPhone}`}
+                       className="inline-block py-2.5 px-5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-mono font-bold text-sm rounded-xl border border-emerald-500/30 transition"
+                       style={{ direction: "ltr" }}
+                     >
+-                      📞 {activeRide.driver_phone}
++                      📞 {activeRide.driverPhone}
+                     </a>
+                   </div>
+                 )}
+               </div>
+-            ) : (
+-              /* الشاشة الاحتفالية الثابتة */
++            ) : activeRide.status === "completed" ? (
+               <div className="text-center space-y-3 py-2">
+                 <div className="text-5xl animate-bounce">🏁 🏁</div>
+                 <h3 className="text-xl font-extrabold text-amber-400">الحمد لله على السلامة! 🎉</h3>
+                 <p className="text-xs text-slate-300 leading-relaxed">
+                   تم إكمال المشوار ووصولك إلى وجهتك بنجاح ✨
+                 </p>
+-                <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/50 text-xs text-slate-400">
+-                  شكراً لاستخدامك تطبيق <strong className="text-amber-400">رَكْشَتُك</strong> 🛺
+-                </div>
++              </div>
++            ) : (
++              <div className="text-center space-y-3 py-2">
++                <div className="text-4xl">🚫</div>
++                <h3 className="text-base font-bold text-red-400">تم إلغاء المشوار</h3>
++                <p className="text-xs text-slate-300">تقدر تطلب مشوار جديد في أي وقت.</p>
+               </div>
+             )}
+ 
+             <div className="text-xs space-y-2 border-t border-b border-slate-800 py-3 text-slate-300">
+-              <div>📍 <strong>من:</strong> {activeRide.pickup_location}</div>
++              <div>📍 <strong>من:</strong> {activeRide.pickupLocation}</div>
+               <div>🏁 <strong>إلى:</strong> {activeRide.destination}</div>
+               {formattedPrice && (
+                 <div>💰 <strong>السعر:</strong> <span className="font-mono font-bold text-amber-400">{formattedPrice} ج.س</span></div>
+@@ -498,7 +505,9 @@ export default function PassengerHome() {
+                   : "bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30"
+               }`}
+             >
+-              {activeRide.status === "completed" ? "طلب مشوار جديد 🚀" : "إلغاء الطلب"}
++              {activeRide.status === "completed" || activeRide.status === "cancelled"
++                ? "طلب مشوار جديد 🚀"
++                : "إلغاء الطلب"}
+             </button>
+           </div>
+         )}
+diff --git a/src/lib/driverSession.ts b/src/lib/driverSession.ts
+index a18238b..f26979f 100644
+--- a/src/lib/driverSession.ts
++++ b/src/lib/driverSession.ts
+@@ -20,6 +20,8 @@ export interface DriverRow {
+   bank_account: string | null;
+   vehicle_type: string | null;
+   is_online: boolean;
++  current_lat?: number | null;
++  current_lng?: number | null;
+ }
+ 
+ /** إحضار السائق الحالي عبر رمز الجلسة (أو null) */
+@@ -30,7 +32,7 @@ export async function findDriverByToken(
+   const admin = getSupabaseAdmin();
+   const { data } = await admin
+     .from("drivers")
+-    .select("id, phone, name, bank_account, vehicle_type, is_online")
++    .select("id, phone, name, bank_account, vehicle_type, is_online, current_lat, current_lng")
+     .eq("auth_token", token)
+     .maybeSingle();
+   return (data as DriverRow | null) ?? null;
+diff --git a/src/lib/rideServer.ts b/src/lib/rideServer.ts
+new file mode 100644
+index 0000000..5f8ca85
+--- /dev/null
++++ b/src/lib/rideServer.ts
+@@ -0,0 +1,274 @@
++import { randomBytes } from "crypto";
++import { NextRequest } from "next/server";
++import { getSupabaseAdmin } from "./supabaseAdmin";
++import { safeEqual } from "./admin";
++import { normalizeSudanesePhone } from "./format";
++import { SERVICE_TYPES } from "./constants";
++
++/**
++ * عمليات الرحلات على الخادم — المرحلة 3:
++ * كل قراءة/كتابة لجدول rides تمر من هنا عبر Service Role (بعد تفعيل RLS
++ * أصبح مفتاح anon مقطوعاً تماماً عن الجداول).
++ */
++
++export const RIDER_TOKEN_HEADER = "x-rider-token";
++
++/** رمز الراكب: يثبت ملكية الرحلة (يُخزَّن في localStorage عند صاحب الطلب فقط) */
++export function generateRiderToken(): string {
++  return randomBytes(24).toString("hex");
++}
++
++export function riderTokenMatches(rowToken: string | null | undefined, provided: string): boolean {
++  return typeof rowToken === "string" && !!rowToken && !!provided && safeEqual(rowToken, provided);
++}
++
++/** قراءة رمز راكب من الترويسة */
++export function getRiderToken(request: NextRequest): string {
++  return (request.headers.get(RIDER_TOKEN_HEADER) || "").trim();
++}
++
++/* ── أنواع مدخلات آمنة ─────────────────────────────────────────── */
++
++export interface CreateRideInput {
++  passengerName: string;
++  phoneNumber: string; // +2499XXXXXXXX
++  pickupLocation: string;
++  destination: string;
++  serviceType: string;
++  offeredPrice: number | null;
++  pickupLat: number | null;
++  pickupLng: number | null;
++}
++
++/** تحقق وتنظيف كامل لطلب إنشاء رحلة — يرجع {error} عند الفشل */
++export function validateCreateRide(body: Record<string, unknown>): { ok: true; input: CreateRideInput } | { ok: false; error: string } {
++  const cleanText = (v: unknown, label: string, max: number): string | null => {
++    if (typeof v !== "string") return null;
++    const t = v.trim();
++    if (!t) return null;
++    return t.length > max ? null : t;
++  };
++
++  const passengerName = cleanText(body.passengerName, "الاسم", 50);
++  const pickupLocation = cleanText(body.pickupLocation, "مكان التحرك", 300);
++  const destination = cleanText(body.destination, "الوجهة", 300);
++  if (!passengerName || !pickupLocation || !destination) {
++    return { ok: false, error: "أكمل الاسم ومكان التحرك والوجهة (بنصوص لا تتجاوز الحدود)" };
++  }
++
++  const phoneNumber = normalizeSudanesePhone(typeof body.phone === "string" ? body.phone : "");
++  if (!phoneNumber) {
++    return { ok: false, error: "رقم الهاتف السوداني غير صحيح (9 أرقام تبدأ بـ 9)" };
++  }
++
++  const serviceType =
++    typeof body.serviceType === "string" && SERVICE_TYPES.some((s) => s.value === body.serviceType)
++      ? body.serviceType
++      : null;
++  if (!serviceType) {
++    return { ok: false, error: "نوع الخدمة غير مسموح به" };
++  }
++
++  let offeredPrice: number | null = null;
++  if (body.offeredPrice !== undefined && body.offeredPrice !== null && body.offeredPrice !== "") {
++    const n = Number(body.offeredPrice);
++    if (!Number.isFinite(n) || n < 0 || n > 100_000_000) {
++      return { ok: false, error: "السعر المقترح غير صالح" };
++    }
++    offeredPrice = Math.round(n);
++  }
++
++  const num = (v: unknown, min: number, max: number): number | null => {
++    if (v === undefined || v === null || v === "") return null;
++    const n = Number(v);
++    if (!Number.isFinite(n) || n < min || n > max) return null;
++    return n;
++  };
++  const pickupLat = num(body.pickupLat, -90, 90);
++  const pickupLng = num(body.pickupLng, -180, 180);
++  if (body.pickupLat !== undefined && body.pickupLat !== null && pickupLat === null) {
++    return { ok: false, error: "إحداثيات مكان التحرك غير صالحة" };
++  }
++
++  return {
++    ok: true,
++    input: { passengerName, phoneNumber, pickupLocation, destination, serviceType, offeredPrice, pickupLat, pickupLng },
++  };
++}
++
++/* ── تمثيل آمن للصفوف (snake من Supabase → camel للواجهة) ───────── */
++
++export interface SafeRide {
++  id: number;
++  status: string;
++  serviceType: string;
++  pickupLocation: string;
++  destination: string;
++  offeredPrice: number | null;
++  driverId: number | null;
++  driverPhone: string | null;
++  createdAt: string | null;
++}
++
++/** تحويل صف rides إلى شكل آمن (بلا rider_token؛ بلا رقم الراكب للراكب نفسه) */
++export function toSafeRide(row: Record<string, unknown>): SafeRide {
++  return {
++    id: Number(row.id),
++    status: String(row.status || "pending"),
++    serviceType: String(row.service_type || "ركشة ركاب"),
++    pickupLocation: String(row.pickup_location || ""),
++    destination: String(row.destination || ""),
++    offeredPrice: row.offered_price === null || row.offered_price === undefined ? null : Number(row.offered_price),
++    driverId: row.driver_id === null || row.driver_id === undefined ? null : Number(row.driver_id),
++    driverPhone: row.driver_phone === null || row.driver_phone === undefined ? null : String(row.driver_phone),
++    createdAt: row.created_at ? String(row.created_at) : null,
++  };
++}
++
++/** نسخة السائق: تتضمن هاتف الراكب للتواصل */
++export function toDriverRide(row: Record<string, unknown>, distanceKm?: number | null) {
++  return {
++    ...toSafeRide(row),
++    passengerName: String(row.passenger_name || ""),
++    phoneNumber: String(row.phone_number || ""),
++    distanceKm: distanceKm === undefined ? null : distanceKm,
++  };
++}
++
++/* ── عمليات ─────────────────────────────────────────────────────── */
++
++export interface RideRow extends Record<string, unknown> {}
++
++/** إنشاء رحلة جديدة — يرجع {ride, riderToken} */
++export async function createRide(input: CreateRideInput) {
++  const admin = getSupabaseAdmin();
++  const riderToken = generateRiderToken();
++
++  const { data, error } = await admin
++    .from("rides")
++    .insert({
++      passenger_name: input.passengerName,
++      phone_number: input.phoneNumber,
++      pickup_location: input.pickupLocation,
++      destination: input.destination,
++      service_type: input.serviceType,
++      offered_price: input.offeredPrice,
++      status: "pending",
++      pickup_lat: input.pickupLat,
++      pickup_lng: input.pickupLng,
++      rider_token: riderToken,
++    })
++    .select()
++    .single();
++
++  if (error || !data) {
++    throw new Error("تعذر حفظ الطلب: " + (error?.message || "خطأ غير معروف"));
++  }
++  return { ride: toSafeRide(data as Record<string, unknown>), riderToken };
++}
++
++/** جلب رحلة */
++export async function loadRide(rideId: number): Promise<RideRow | null> {
++  const admin = getSupabaseAdmin();
++  const { data } = await admin.from("rides").select("*").eq("id", rideId).maybeSingle();
++  return (data as RideRow | null) ?? null;
++}
++
++/** إلغاء (لصاحبها بالرمز/لسائقها/للإدارة) */
++export async function cancelRide(
++  rideId: number,
++  where: { riderToken?: string; driverId?: number; driverPhone?: string; admin?: boolean }
++): Promise<{ ok: boolean; error?: string }> {
++  const admin = getSupabaseAdmin();
++  const row = await loadRide(rideId);
++  if (!row) return { ok: false, error: "الرحلة غير موجودة" };
++
++  const allowed =
++    where.admin === true ||
++    (where.riderToken ? riderTokenMatches(String(row.rider_token || ""), where.riderToken) : false) ||
++    (where.driverId !== undefined && Number(row.driver_id) === where.driverId) ||
++    (where.driverPhone ? row.driver_phone === where.driverPhone : false);
++
++  if (!allowed) {
++    return { ok: false, error: "غير مصرح بإلغاء هذه الرحلة" };
++  }
++
++  const { error } = await admin
++    .from("rides")
++    .update({ status: "cancelled" })
++    .eq("id", rideId)
++    .in("status", ["pending", "accepted"]);
++
++  if (error) return { ok: false, error: "فشل الإلغاء: " + error.message };
++  return { ok: true };
++}
++
++/** رفع السعر 20% (صاحب الرحلة فقط وهي pending) */
++export async function raisePrice(
++  rideId: number,
++  riderToken: string
++): Promise<{ ok: boolean; price?: number; error?: string }> {
++  const admin = getSupabaseAdmin();
++  const row = await loadRide(rideId);
++  if (!row) return { ok: false, error: "الرحلة غير موجودة" };
++  if (!riderTokenMatches(String(row.rider_token || ""), riderToken)) {
++    return { ok: false, error: "غير مصرح بهذه الرحلة" };
++  }
++  if (row.status !== "pending") {
++    return { ok: false, error: "لا يمكن رفع السعر إلا أثناء البحث عن سائق" };
++  }
++
++  const current = Number(row.offered_price);
++  const newPrice =
++    Number.isFinite(current) && current > 0 ? Math.round(current * 1.2) : 0;
++  if (newPrice <= 0) return { ok: false, error: "حدّد سعراً أولاً في نموذج الطلب" };
++
++  const { error } = await admin.from("rides").update({ offered_price: newPrice }).eq("id", rideId);
++  if (error) return { ok: false, error: "فشل رفع السعر: " + error.message };
++  return { ok: true, price: newPrice };
++}
++
++/** قبول شرطي (يمنع القبول المزدوج): pending → accepted */
++export async function acceptRide(rideId: number, driverId: number, driverPhone: string) {
++  const admin = getSupabaseAdmin();
++
++  const { data, error } = await admin
++    .from("rides")
++    .update({
++      status: "accepted",
++      driver_id: driverId,
++      driver_phone: driverPhone,
++    })
++    .eq("id", rideId)
++    .eq("status", "pending")
++    .select()
++    .single();
++
++  if (error) {
++    // لا صفوف مطابقة = سُبق القبول
++    if (String(error.message).includes("0 rows")) {
++      return { ok: false, conflict: true };
++    }
++    return { ok: false, conflict: false, error: "فشل القبول: " + error.message };
++  }
++  if (!data) return { ok: false, conflict: true };
++  return { ok: true, ride: toDriverRide(data as Record<string, unknown>) };
++}
++
++/** إنهاء مشوار السائق نفسه */
++export async function completeRide(
++  rideId: number,
++  driverId: number,
++  driverPhone: string
++): Promise<{ ok: boolean; error?: string }> {
++  const admin = getSupabaseAdmin();
++  const row = await loadRide(rideId);
++  if (!row) return { ok: false, error: "الرحلة غير موجودة" };
++  if (row.status !== "accepted") return { ok: false, error: "الرحلة ليست قيد التنفيذ" };
++  const mine = Number(row.driver_id) === driverId || row.driver_phone === driverPhone;
++  if (!mine) return { ok: false, error: "هذه ليست رحلتك" };
++
++  const { error } = await admin.from("rides").update({ status: "completed" }).eq("id", rideId);
++  if (error) return { ok: false, error: "فشل الإنهاء: " + error.message };
++  return { ok: true };
++}
+diff --git a/src/lib/supabase.ts b/src/lib/supabase.ts
+deleted file mode 100644
+index a8267d4..0000000
+--- a/src/lib/supabase.ts
++++ /dev/null
+@@ -1,31 +0,0 @@
+-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+-
+-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+-
+-/** وضع المعاينة بدون متغيرات بيئة: عميل وهمي يرجع نتايج آمنة بدل ما يكسر الصفحة */
+-function makeStub(): SupabaseClient {
+-  const result = {
+-    data: null,
+-    error: { message: "وضع المعاينة: قاعدة البيانات غير مربوطة" },
+-  };
+-  const proxy: any = new Proxy(function () {}, {
+-    get(_t, prop) {
+-      if (prop === "then") {
+-        return (res: any) => Promise.resolve(result).then(res);
+-      }
+-      return () => proxy;
+-    },
+-  });
+-  const stub: any = {
+-    from: () => proxy,
+-    channel: () => proxy,
+-    removeChannel: () => {},
+-  };
+-  return stub as SupabaseClient;
+-}
+-
+-export const supabase: SupabaseClient =
+-  supabaseUrl && supabaseAnonKey
+-    ? createClient(supabaseUrl, supabaseAnonKey)
+-    : (console.warn("[ركشتك] متغيرات Supabase غير مضبوطة — شغال بوضع المعاينة"), makeStub());
+diff --git a/supabase/phase3.sql b/supabase/phase3.sql
+new file mode 100644
+index 0000000..16e376c
+--- /dev/null
++++ b/supabase/phase3.sql
+@@ -0,0 +1,37 @@
++-- ═══════════════════════════════════════════════════════════════════
++--  المرحلة 3 — الحماية الجوهرية: عمليات عبر الخادم + RLS
++--
++--  📌 التنفيذ بعد phase2.sql: Supabase → SQL Editor → Run (مرة واحدة).
++--  بعد هذا الملف: لا يستطيع مفتاح anon قراءة/كتابة أي جدول —
++--  كل العمليات تمر بمسارات الخادم (Service Role تتجاوز RLS).
++--  ملاحظة: يتوقف realtime المباشر للمتصفح (تعتمد الصفحات الآن على
++--  استطلاع دوري عبر مسارات الخادم — أُعيد تصميم الواجهات لذلك).
++-- ═══════════════════════════════════════════════════════════════════
++
++-- 1) رمز «الراكب» الخاص بكل رحلة (يثبت ملكية الراكب لرحلة معينة)
++alter table public.rides
++  add column if not exists rider_token text;
++
++create index if not exists rides_rider_token_idx on public.rides (rider_token);
++
++-- 2) أعمدة موقع السائق الحالي (إن لم تكن موجودة من المرحلة 2)
++alter table public.drivers
++  add column if not exists current_lat double precision;
++
++alter table public.drivers
++  add column if not exists current_lng double precision;
++
++-- 3) تفعيل RLS — بدون أي سياسة للمجهول = رفض تام لمفتاح anon
++alter table public.rides   enable row level security;
++alter table public.drivers enable row level security;
++alter table public.otp_codes enable row level security;
++
++-- 4) قطع صريح لأدوار المتصفح (anon/authenticated) — خادمنا فقط عبر service_role
++revoke all on table public.rides, public.drivers, public.otp_codes
++  from anon, authenticated;
++
++-- (service_role يتمتع BYPASSRLS فيتجاوز الحظر — وهذا هو المستخدم الوحيد الآن)
++
++-- 5) ملاحظة: عند الحاجة لفتح مسار محدد للمتصفح مستقبلاً أضف سياسة:
++-- create policy "rides anon insert pending" on public.rides
++--   for insert to anon with check (status = 'pending');
