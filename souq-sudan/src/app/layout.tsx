@@ -8,7 +8,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "سوق السودان — بيع وشراء وإيجار",
+  title: "سمسار السودان — بيع وشراء وإيجار",
   description: "منصة بيع وشراء وإيجار السيارات والعقارات في السودان، مع نظام مفاصلة مباشر بين البائع والمشتري",
 };
 

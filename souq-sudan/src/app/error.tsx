@@ -11,7 +11,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     // نطبع تفاصيل الخطأ الكاملة في الكونسول عشان يسهل تشخيصها
-    console.error("[سوق السودان] خطأ غير متوقع:", error);
+    console.error("[سمسار السودان] خطأ غير متوقع:", error);
   }, [error]);
 
   return (

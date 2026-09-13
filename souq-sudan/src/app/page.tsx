@@ -64,7 +64,7 @@ export default function BrowsePage() {
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-5">
         {/* شريط ترحيبي */}
         <div className="bg-gradient-to-l from-sky-600/20 to-transparent border border-sky-900/50 rounded-2xl p-5">
-          <h1 className="text-xl font-extrabold text-white">🛒 سوق السودان</h1>
+          <h1 className="text-xl font-extrabold text-white">🛒 سمسار السودان</h1>
           <p className="text-xs text-slate-400 mt-1">
             بيع، شراء، وإيجار السيارات والعقارات — بالمفاصلة المباشرة مع البائع
           </p>

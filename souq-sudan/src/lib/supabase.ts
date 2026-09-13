@@ -34,4 +34,4 @@ function makeStub(): SupabaseClient {
 export const supabase: SupabaseClient =
   supabaseUrl && supabaseAnonKey
     ? createClient(supabaseUrl, supabaseAnonKey)
-    : (console.warn("[سوق السودان] متغيرات Supabase غير مضبوطة — شغال بوضع المعاينة"), makeStub());
+    : (console.warn("[سمسار السودان] متغيرات Supabase غير مضبوطة — شغال بوضع المعاينة"), makeStub());
