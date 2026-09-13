@@ -179,17 +179,18 @@ export default function PassengerHome() {
     e.preventDefault();
     setErrorMsg(null);
 
+    // الاسم اختياري — رقم الهاتف ومكان التحرك والوجهة إجباريون فقط
     const cleanName = passengerName.trim().replace(/\s+/g, " ");
     const cleanPickup = pickupLocation.trim();
     const cleanDestination = destination.trim();
-    if (!cleanName || !cleanPickup || !cleanDestination) {
-      setErrorMsg("فضلاً املأ الاسم ومكان التحرك والوجهة");
+    if (!cleanPickup || !cleanDestination) {
+      setErrorMsg("فضلاً املأ مكان التحرك والوجهة");
       return;
     }
 
     const fullPhone = normalizeSudanesePhone(phoneNumber);
     if (!fullPhone) {
-      setErrorMsg("رقم الهاتف غير صحيح — أدخل 9 أرقام سودانية تبدأ بـ 9 (مثال: 0912345678)");
+      setErrorMsg("رقم الهاتف غير صحيح — أدخل 9 أرقام سودانية تبدأ بـ 9 أو 1 (مثال: 0912345678 أو 0114537190)");
       return;
     }
 
@@ -318,10 +319,9 @@ export default function PassengerHome() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">الاسم:</label>
+                <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">الاسم (اختياري):</label>
                 <input
                   type="text"
-                  required
                   maxLength={50}
                   value={passengerName}
                   onChange={(e) => setPassengerName(e.target.value)}
@@ -363,7 +363,7 @@ export default function PassengerHome() {
                   maxLength={10}
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  placeholder="9XXXXXXXX"
+                  placeholder="9XXXXXXXX أو 1XXXXXXXX"
                   className="w-full bg-transparent px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-left"
                   style={{ direction: 'ltr' }}
                 />

@@ -34,6 +34,7 @@ interface DriverProfile {
   name: string;
   bankAccount: string | null;
   vehicleType: string | null;
+  licenseNumber: string | null;
   isOnline: boolean;
 }
 
@@ -42,21 +43,20 @@ const DRIVER_TOKEN_KEY = "driver_token";
 const sameId = (a: unknown, b: unknown) =>
   a !== undefined && a !== null && b !== undefined && b !== null && String(a) === String(b);
 
-type AuthStage = "login" | "code" | "ready";
+type AuthStage = "login" | "ready";
 
 export default function DriverDashboard() {
   const [stage, setStage] = useState<AuthStage>("login");
   const [phoneDigits, setPhoneDigits] = useState("");
-  const [codeDigits, setCodeDigits] = useState("");
   const [busy, setBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authInfo, setAuthInfo] = useState<string | null>(null);
-  const [previewCode, setPreviewCode] = useState<string | null>(null);
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [bankDraft, setBankDraft] = useState("");
   const [vehicleDraft, setVehicleDraft] = useState("");
+  const [licenseDraft, setLicenseDraft] = useState("");
   const [showBank, setShowBank] = useState(false);
 
   const [isAvailable, setIsAvailable] = useState(true);
@@ -177,9 +177,7 @@ export default function DriverDashboard() {
     syncCurrentRide(null);
     setAvailableRides([]);
     setStage("login");
-    setCodeDigits("");
     setAuthInfo(null);
-    setPreviewCode(null);
     knownIdsRef.current = new Set();
   };
 
@@ -209,6 +207,7 @@ export default function DriverDashboard() {
             name: data.driver.name || "",
             bankAccount: data.driver.bankAccount || null,
             vehicleType: data.driver.vehicleType || null,
+            licenseNumber: data.driver.licenseNumber || null,
             isOnline: data.driver.isOnline !== false,
           };
           syncProfile(p);
@@ -219,7 +218,7 @@ export default function DriverDashboard() {
           return;
         }
         localStorage.removeItem(DRIVER_TOKEN_KEY);
-        setAuthError("انتهت جلستك — سجّل الدخول برمز التحقق من جديد");
+        setAuthError("انتهت جلستك — سجّل الدخول من جديد");
       } catch {
         if (!cancelled) {
           setAuthError("تعذر الاتصال بالخادم — تأكد من تشغيل المتغيرات ثم أعد المحاولة");
@@ -293,65 +292,42 @@ export default function DriverDashboard() {
     [pollRides]
   );
 
-  // ── OTP: طلب رمز ──────────────────────────────────────────────
-  const requestOtp = async (e: React.FormEvent) => {
+  // ── تسجيل/دخول السائق مباشرة (بلا رمز تحقق) ─────────────────────
+  const registerDriver = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
     const phone = normalizeSudanesePhone(phoneDigits);
     if (!phone) {
-      setAuthError("أدخل رقم هاتف سوداني صحيح (9 أرقام تبدأ بـ 9)");
+      setAuthError("أدخل رقم هاتف سوداني صحيح (9 أرقام تبدأ بـ 9 أو 1)");
       return;
     }
-    setBusy(true);
-    setAuthError(null);
-    setAuthInfo(null);
-    setPreviewCode(null);
-    try {
-      const res = await fetch("/api/driver/request-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.ok) {
-        setStage("code");
-        setAuthInfo(data.message || "تم إرسال رمز التحقق إلى هاتفك");
-        setPreviewCode(data.previewCode || null);
-      } else {
-        setAuthError(data.error || "تعذر إرسال الرمز — حاول مرة أخرى");
-      }
-    } catch {
-      setAuthError("خطأ في الاتصال بالخادم");
-    } finally {
-      setBusy(false);
+    if (!nameDraft.trim()) {
+      setAuthError("الاسم مطلوب");
+      return;
     }
-  };
-
-  // ── OTP: تحقق ودخول ───────────────────────────────────────────
-  const verifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (busy) return;
-    const phone = normalizeSudanesePhone(phoneDigits);
-    if (!phone || !/^\d{6}$/.test(codeDigits)) {
-      setAuthError("أدخل رمز التحقق (6 أرقام)");
+    if (!licenseDraft.trim()) {
+      setAuthError("رقم الرخصة مطلوب");
       return;
     }
     setBusy(true);
     setAuthError(null);
     try {
-      const payload: Record<string, string> = { phone, code: codeDigits };
-      if (nameDraft.trim()) payload.name = nameDraft.trim();
+      const payload: Record<string, string> = {
+        phone,
+        name: nameDraft.trim(),
+        licenseNumber: licenseDraft.trim(),
+      };
       if (bankDraft.trim()) payload.bankAccount = bankDraft.replace(/\s+/g, "");
       if (vehicleDraft.trim()) payload.vehicleType = vehicleDraft.trim();
 
-      const res = await fetch("/api/driver/verify-otp", {
+      const res = await fetch("/api/driver/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok || !data.driver) {
-        setAuthError(data.error || "فشل التحقق — حاول مرة أخرى");
+        setAuthError(data.error || "فشل التسجيل — حاول مرة أخرى");
         return;
       }
 
@@ -361,6 +337,7 @@ export default function DriverDashboard() {
         name: data.driver.name || "",
         bankAccount: data.driver.bankAccount || null,
         vehicleType: data.driver.vehicleType || null,
+        licenseNumber: data.driver.licenseNumber || null,
         isOnline: data.driver.isOnline !== false,
       };
       syncProfile(p);
@@ -369,7 +346,6 @@ export default function DriverDashboard() {
       localStorage.setItem("driver_phone", p.phone);
       setIsAvailable(p.isOnline);
       setStage("ready");
-      setCodeDigits("");
       knownIdsRef.current = new Set();
       locateDriver();
     } catch {
@@ -400,6 +376,7 @@ export default function DriverDashboard() {
           name: nameDraft,
           bankAccount: bankDraft.replace(/\s+/g, ""),
           vehicleType: vehicleDraft,
+          licenseNumber: licenseDraft,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -411,6 +388,7 @@ export default function DriverDashboard() {
             name: data.driver.name || p.name,
             bankAccount: data.driver.bankAccount ?? p.bankAccount,
             vehicleType: data.driver.vehicleType ?? p.vehicleType,
+            licenseNumber: data.driver.licenseNumber ?? p.licenseNumber,
           });
         }
         setEditingProfile(false);
@@ -534,127 +512,97 @@ export default function DriverDashboard() {
           </button>
         </header>
 
-        {/* ══════════ شاشة الدخول برمز التحقق ══════════ */}
+        {/* ══════════ شاشة تسجيل/دخول السائق (بلا رمز تحقق) ══════════ */}
         {stage !== "ready" ? (
           <div className="space-y-5 py-6 flex-1 flex flex-col justify-center">
             <div className="text-center space-y-1.5">
               <h2 className="text-lg font-bold text-white">دخول السائق 🚖</h2>
               <p className="text-xs text-slate-400">
-                {stage === "login"
-                  ? "أدخل رقم هاتفك وسيصلك رمز تحقق (OTP) — لا مزيد من الدخول بدون تحقق"
-                  : "أدخل الرمز المكوّن من 6 أرقام الذي وصل إلى هاتفك"}
+                أدخل بياناتك للانضمام كسائق — الاسم ورقم الرخصة مطلوبان
               </p>
             </div>
 
-            {stage === "login" ? (
-              <form onSubmit={requestOtp} className="space-y-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">📞 رقم الهاتف:</label>
-                  <div
-                    className="flex items-stretch border border-sky-700/60 rounded-xl overflow-hidden bg-[#0c4a6e] focus-within:border-amber-500"
-                    style={{ direction: 'ltr' }}
-                  >
-                    <div className="bg-[#075985] text-amber-400 px-3.5 py-3 text-sm font-mono font-bold border-r border-sky-700/60 flex items-center gap-1.5 select-none shrink-0">
-                      <span>🇸🇩</span>
-                      <span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>+249</span>
-                    </div>
-                    <input
-                      type="tel"
-                      required
-                      inputMode="numeric"
-                      maxLength={10}
-                      value={phoneDigits}
-                      onChange={(e) => setPhoneDigits(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                      placeholder="9XXXXXXXX"
-                      className="w-full bg-transparent px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-left"
-                      style={{ direction: 'ltr' }}
-                    />
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="w-full py-4 bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 font-extrabold rounded-2xl text-base shadow-xl transition mt-2 disabled:opacity-50"
+            <form onSubmit={registerDriver} className="space-y-4">
+              {authInfo && (
+                <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2.5 leading-relaxed">
+                  ✅ {authInfo}
+                </p>
+              )}
+              <div>
+                <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">📞 رقم الهاتف:</label>
+                <div
+                  className="flex items-stretch border border-sky-700/60 rounded-xl overflow-hidden bg-[#0c4a6e] focus-within:border-amber-500"
+                  style={{ direction: 'ltr' }}
                 >
-                  {busy ? "جاري الإرسال..." : "إرسال رمز التحقق 📲"}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={verifyOtp} className="space-y-4">
-                {authInfo && (
-                  <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2.5 leading-relaxed">
-                    ✅ {authInfo}
-                  </p>
-                )}
+                  <div className="bg-[#075985] text-amber-400 px-3.5 py-3 text-sm font-mono font-bold border-r border-sky-700/60 flex items-center gap-1.5 select-none shrink-0">
+                    <span>🇸🇩</span>
+                    <span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>+249</span>
+                  </div>
+                  <input
+                    type="tel"
+                    required
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={phoneDigits}
+                    onChange={(e) => setPhoneDigits(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="9XXXXXXXX أو 1XXXXXXXX"
+                    className="w-full bg-transparent px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-left"
+                    style={{ direction: 'ltr' }}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">🔢 رمز التحقق:</label>
+                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">الاسم: *</label>
                   <input
                     type="text"
                     required
-                    inputMode="numeric"
-                    autoFocus
-                    maxLength={6}
-                    value={codeDigits}
-                    onChange={(e) => setCodeDigits(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="000000"
-                    className="w-full bg-[#0c4a6e] border border-sky-700/60 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono text-center tracking-[0.5em]"
-                    dir="ltr"
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    placeholder="اسمك الكريم"
+                    className="w-full bg-[#0c4a6e] border border-sky-700/60 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                   />
-                  {previewCode && (
-                    <p className="text-[11px] text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5 mt-2 leading-relaxed">
-                      🧪 وضع تجريبي (بدون مزوّد إرسال): استخدم الرمز{" "}
-                      <strong className="font-mono text-base tracking-widest">{previewCode}</strong>
-                    </p>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">الاسم:</label>
-                    <input
-                      type="text"
-                      value={nameDraft}
-                      onChange={(e) => setNameDraft(e.target.value)}
-                      placeholder="اختياري"
-                      className="w-full bg-[#0c4a6e] border border-sky-700/60 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">المركبة:</label>
-                    <input
-                      type="text"
-                      value={vehicleDraft}
-                      onChange={(e) => setVehicleDraft(e.target.value)}
-                      placeholder="مثال: ركشة"
-                      className="w-full bg-[#0c4a6e] border border-sky-700/60 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">🏦 رقم الحساب البنكي:</label>
+                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">🪪 رقم الرخصة: *</label>
                   <input
-                    type={showBank ? "text" : "password"}
-                    value={bankDraft}
-                    onChange={(e) => setBankDraft(e.target.value.replace(/\s+/g, ""))}
-                    placeholder="اختياري — لتحويل المستحقات"
-                    className="w-full bg-[#0c4a6e] border border-sky-700/60 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-right focus:border-amber-500"
+                    type="text"
+                    required
+                    value={licenseDraft}
+                    onChange={(e) => setLicenseDraft(e.target.value)}
+                    placeholder="رقم رخصة القيادة"
+                    className="w-full bg-[#0c4a6e] border border-sky-700/60 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                   />
                 </div>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] text-slate-950 font-extrabold rounded-2xl text-base shadow-xl transition mt-2 disabled:opacity-50"
-                >
-                  {busy ? "جاري التحقق..." : "تحقق وادخل اللوحة ✅"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setStage("login"); setAuthInfo(null); setPreviewCode(null); setAuthError(null); }}
-                  className="w-full text-center text-xs text-slate-400 hover:text-white underline transition"
-                >
-                  تغيير رقم الهاتف
-                </button>
-              </form>
-            )}
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">المركبة:</label>
+                <input
+                  type="text"
+                  value={vehicleDraft}
+                  onChange={(e) => setVehicleDraft(e.target.value)}
+                  placeholder="اختياري — مثال: ركشة"
+                  className="w-full bg-[#0c4a6e] border border-sky-700/60 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">🏦 رقم الحساب البنكي:</label>
+                <input
+                  type={showBank ? "text" : "password"}
+                  value={bankDraft}
+                  onChange={(e) => setBankDraft(e.target.value.replace(/\s+/g, ""))}
+                  placeholder="اختياري — لتحويل المستحقات"
+                  className="w-full bg-[#0c4a6e] border border-sky-700/60 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-right focus:border-amber-500"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={busy}
+                className="w-full py-4 bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 font-extrabold rounded-2xl text-base shadow-xl transition mt-2 disabled:opacity-50"
+              >
+                {busy ? "جاري الدخول..." : "دخول لوحة السائق 🚖"}
+              </button>
+            </form>
 
             {authError && (
               <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5 leading-relaxed">
@@ -687,6 +635,9 @@ export default function DriverDashboard() {
                 {profile.vehicleType ? (
                   <div className="text-[10px] text-slate-400">🛺 {profile.vehicleType}</div>
                 ) : null}
+                {profile.licenseNumber ? (
+                  <div className="text-[10px] text-slate-400">🪪 رخصة: {profile.licenseNumber}</div>
+                ) : null}
               </div>
               <div className="flex flex-col gap-1.5 shrink-0">
                 <button
@@ -701,6 +652,7 @@ export default function DriverDashboard() {
                     setNameDraft(profile.name || "");
                     setBankDraft(profile.bankAccount || "");
                     setVehicleDraft(profile.vehicleType || "");
+                    setLicenseDraft(profile.licenseNumber || "");
                     setAuthInfo(null);
                     setAuthError(null);
                   }}
@@ -732,6 +684,15 @@ export default function DriverDashboard() {
                       className="w-full bg-[#075985] border border-sky-700/60 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-300 mb-1 block text-right">🪪 رقم الرخصة:</label>
+                  <input
+                    type="text"
+                    value={licenseDraft}
+                    onChange={(e) => setLicenseDraft(e.target.value)}
+                    className="w-full bg-[#075985] border border-sky-700/60 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] font-semibold text-slate-300 mb-1 block text-right">🏦 الحساب البنكي:</label>
