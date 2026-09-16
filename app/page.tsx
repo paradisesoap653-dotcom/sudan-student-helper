@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../supabaseClient";
+import PDFDownloadButton from "../components/PDFDownloadButton";
 
 /* =========================================================
    صورة الواجهة الرئيسية - Supabase
@@ -2380,6 +2381,51 @@ export default function Home() {
 
   const [vocabIndex, setVocabIndex] = useState(0);
 
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
+  const [offlineFiles, setOfflineFiles] = useState<any[]>([]);
+  const [offlineLessons, setOfflineLessons] = useState<any[]>([]);
+
+  // Load offline content when modal opens
+  useEffect(() => {
+    if (!showOfflineModal) return;
+    async function loadOfflineContent() {
+      // Load downloaded PDFs
+      const pdfCache = await caches.open('sudan-student-offline-pdfs');
+      const pdfRequests = await pdfCache.keys();
+      const files = [];
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const req = indexedDB.open('sudan-student-offline', 1);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      
+      for (const req of pdfRequests) {
+        const meta = await new Promise<any>((resolve) => {
+          const tx = db.transaction('pdfs', 'readonly');
+          const store = tx.objectStore('pdfs');
+          const getReq = store.get(req.url);
+          getReq.onsuccess = () => resolve(getReq.result);
+        });
+        if (meta) files.push(meta);
+      }
+      setOfflineFiles(files);
+
+      // Load downloaded lessons
+      const lessonDb = await new Promise<IDBDatabase>((resolve) => {
+        const req = indexedDB.open('sudan-student-offline', 1);
+        req.onsuccess = () => resolve(req.result);
+      });
+      const lessons = await new Promise<any[]>((resolve) => {
+        const tx = lessonDb.transaction('lessons', 'readonly');
+        const store = tx.objectStore('lessons');
+        const getAllReq = store.getAll();
+        getAllReq.onsuccess = () => resolve(getAllReq.result);
+      });
+      setOfflineLessons(lessons);
+    }
+    loadOfflineContent();
+  }, [showOfflineModal]);
+
   /* =======================================================
      الملفات الحالية
   ======================================================= */
@@ -2694,6 +2740,20 @@ export default function Home() {
               >
                 اختر المادة التي تريدها
               </p>
+
+              {/* اعلان ميزة العمل بدون انترنت */}
+              <div style={{
+                marginTop: "16px",
+                padding: "10px 14px",
+                backgroundColor: "#14532d",
+                border: "1px solid #22c55e",
+                borderRadius: "10px",
+                color: "#bbf7d0",
+                fontSize: "13px",
+                fontWeight: "bold",
+              }}>
+                📶 ✅ الميزة الجديدة: حمل الدروس التي تريدها وذاكرها حتى بدون انترنت! ستجد زر التحميل اعلى صفحة كل درس.
+              </div>
             </div>
 
             <div
@@ -2861,7 +2921,7 @@ export default function Home() {
                 }}
                 style={{
                   flex: 1,
-                  padding: "10px 4px",
+                  padding: "9px 3px",
                   border: "none",
                   borderRadius: "7px",
                   backgroundColor:
@@ -2871,7 +2931,7 @@ export default function Home() {
                   color: "#fff",
                   cursor: "pointer",
                   fontWeight: "bold",
-                  fontSize: "12px",
+                  fontSize: "11px",
                 }}
               >
                 📖 الكتب
@@ -2885,7 +2945,7 @@ export default function Home() {
                 }}
                 style={{
                   flex: 1,
-                  padding: "10px 4px",
+                  padding: "9px 3px",
                   border: "none",
                   borderRadius: "7px",
                   backgroundColor:
@@ -2895,7 +2955,7 @@ export default function Home() {
                   color: "#fff",
                   cursor: "pointer",
                   fontWeight: "bold",
-                  fontSize: "12px",
+                  fontSize: "11px",
                 }}
               >
                 📝 الامتحانات
@@ -2909,7 +2969,7 @@ export default function Home() {
                 }}
                 style={{
                   flex: 1,
-                  padding: "10px 4px",
+                  padding: "9px 3px",
                   border: "none",
                   borderRadius: "7px",
                   backgroundColor:
@@ -2919,33 +2979,51 @@ export default function Home() {
                   color: "#fff",
                   cursor: "pointer",
                   fontWeight: "bold",
-                  fontSize: "12px",
+                  fontSize: "11px",
                 }}
               >
-                ⚡ الدروس
+                ⚡ دروس
               </button>
 
               <Link
-  href={`/chat?subject=${subject.id}`}
+                href={`/chat?subject=${subject.id}`}
                 style={{
                   flex: 1,
-                  padding: "10px 4px",
+                  padding: "9px 3px",
                   borderRadius: "7px",
                   backgroundColor: "#7c3aed",
                   color: "#fff",
                   cursor: "pointer",
                   fontWeight: "bold",
-                  fontSize: "12px",
+                  fontSize: "11px",
                   textDecoration: "none",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: "3px",
+                  gap: "2px",
                   border: "1px solid #a78bfa",
                 }}
               >
-                💬 الدردشة
+                💬 دردشة
               </Link>
+
+              <button
+                type="button"
+                onClick={() => setShowOfflineModal(true)}
+                style={{
+                  flex: 1,
+                  padding: "9px 3px",
+                  borderRadius: "7px",
+                  backgroundColor: "#22c55e",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  fontSize: "11px",
+                  border: "1px solid #86efac",
+                }}
+              >
+                📶 بدون نت
+              </button>
             </div>
 
             {/* =================================================
@@ -3006,28 +3084,30 @@ export default function Home() {
                           </div>
                         </div>
 
-                        <a
-                          href={file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            flexShrink: 0,
-                            padding:
-                              "8px 14px",
-                            backgroundColor:
-                              "#22c55e",
-                            textDecoration:
-                              "none",
-                            color: "#fff",
-                            borderRadius:
-                              "7px",
-                            fontWeight:
-                              "bold",
-                            fontSize: "13px",
-                          }}
-                        >
-                          فتح
-                        </a>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              flexShrink: 0,
+                              padding:
+                                "8px 14px",
+                              backgroundColor:
+                                "#22c55e",
+                              textDecoration:
+                                "none",
+                              color: "#fff",
+                              borderRadius:
+                                "7px",
+                              fontWeight:
+                                "bold",
+                              fontSize: "13px",
+                            }}
+                          >
+                            فتح
+                          </a>
+                        </div>
                       </div>
                     )
                   )
@@ -3268,6 +3348,96 @@ export default function Home() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ===================================================
+          نافذة المحتوى المحمل بدون انترنت
+      =================================================== */}
+      {showOfflineModal && (
+        <div
+          dir="rtl"
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.8)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+          }}
+          onClick={() => setShowOfflineModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: "500px",
+              maxHeight: "80dvh",
+              backgroundColor: "#0f172a",
+              borderRadius: "14px",
+              border: "1px solid #22c55e",
+              padding: "20px",
+              overflowY: "auto",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <h3 style={{ margin: 0, color: "#22c55e", fontSize: "20px" }}>📶 المحتوى المحمل بدون نت</h3>
+              <button
+                onClick={() => setShowOfflineModal(false)}
+                style={{ background: "none", border: "none", color: "#94a3b8", fontSize: "24px", cursor: "pointer" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ color: "#cbd5e1", fontSize: "13px", marginBottom: "20px", textAlign: "center" }}>
+              جميع الملفات والدروس المحفوظة هنا تعمل حتى بدون انترنت
+            </p>
+
+            {/* ملفات PDF وكتب */}
+            <div style={{ marginBottom: "20px" }}>
+              <h4 style={{ color: "#fff", fontSize: "14px", marginBottom: "10px" }}>📚 الكتب والامتحانات ({offlineFiles.length})</h4>
+              {offlineFiles.length === 0 ? (
+                <p style={{ color: "#64748b", fontSize: "12px", textAlign: "center", padding: "15px" }}>
+                  لا توجد ملفات محملة حتى الان. اضغط فتح على اي كتاب/امتحان وسيتم حفظه تلقائيا هنا.
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {offlineFiles.map((file) => (
+                    <div key={file.url} style={{ padding: "12px", backgroundColor: "#1e293b", borderRadius: "8px", border: "1px solid #334155", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: "#fff", fontSize: "13px", fontWeight: "bold" }}>{file.title}</div>
+                      </div>
+                      <a href={file.url} target="_blank" rel="noopener noreferrer" style={{ padding: "6px 12px", backgroundColor: "#22c55e", color: "white", textDecoration: "none", borderRadius: "6px", fontSize: "12px", fontWeight: "bold" }}>
+                        فتح
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* دروس تفاعلية */}
+            <div>
+              <h4 style={{ color: "#fff", fontSize: "14px", marginBottom: "10px" }}>⚡ الدروس التفاعلية ({offlineLessons.length})</h4>
+              {offlineLessons.length === 0 ? (
+                <p style={{ color: "#64748b", fontSize: "12px", textAlign: "center", padding: "15px" }}>
+                  لا توجد دروس محملة حتى الان. افتح الدرس واضغط على زر التحميل اعلى الصفحة.
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {offlineLessons.map((lesson) => (
+                    <div key={lesson.id} style={{ padding: "12px", backgroundColor: "#1e293b", borderRadius: "8px", border: "1px solid #334155" }}>
+                      <div style={{ color: "#fff", fontSize: "13px", fontWeight: "bold" }}>{lesson.content.lesson_title}</div>
+                      <div style={{ color: "#94a3b8", fontSize: "11px", marginTop: "4px" }}>{lesson.content.unit_title}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

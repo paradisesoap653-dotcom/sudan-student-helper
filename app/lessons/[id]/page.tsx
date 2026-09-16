@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 
 import { supabase } from "../../../supabaseClient";
 import InteractiveLesson from "../../InteractiveLesson";
+import OfflineDownloadButton from "../../../components/OfflineDownloadButton";
+import { getOfflineLesson } from "../../../lib/offline-storage";
 
 import type {
   Lesson,
@@ -139,6 +141,18 @@ export default function LessonPage() {
           err
         );
 
+        // Try to load offline cached version if network fails
+        try {
+          const offlineLesson = await getOfflineLesson(id);
+          if (offlineLesson) {
+            setLesson(offlineLesson);
+            setLoading(false);
+            return;
+          }
+        } catch (offlineErr) {
+          console.error("Offline load failed:", offlineErr);
+        }
+
         setError(true);
         setLoading(false);
       }
@@ -260,6 +274,9 @@ export default function LessonPage() {
       }}
     >
       <div style={{ width: "100%", maxWidth: "768px", margin: "0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
+          <OfflineDownloadButton lessonId={id} lessonContent={lesson} />
+        </div>
         <InteractiveLesson
           key={String(lesson.id)}
           lesson={lesson}
