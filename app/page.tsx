@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../supabaseClient";
+import PDFDownloadButton from "../components/PDFDownloadButton";
+import LessonDownloadButton from "../components/LessonDownloadButton";
 
 /* =========================================================
    صورة الواجهة الرئيسية - Supabase
@@ -1027,7 +1029,7 @@ function InteractiveLesson({
         <div
           dir="auto"
           style={{
-            fontSize: "12px",
+            fontSize: "11px",
             color: "#fbbf24",
             marginBottom: "6px",
             textAlign: "start",
@@ -1280,7 +1282,7 @@ function InteractiveLesson({
 
             <div
               style={{
-                fontSize: "12px",
+                fontSize: "11px",
                 color: "#64748b",
                 marginBottom: "16px",
               }}
@@ -1304,7 +1306,7 @@ function InteractiveLesson({
               <span
                 style={{
                   color: "#94a3b8",
-                  fontSize: "12px",
+                  fontSize: "11px",
                 }}
               >
                 التقدم
@@ -1355,7 +1357,7 @@ function InteractiveLesson({
                     color: "#38bdf8",
                     fontWeight: "bold",
                     textAlign: "center",
-                    fontSize: "12px",
+                    fontSize: "11px",
                     marginBottom: "8px",
                   }}
                 >
@@ -1433,7 +1435,7 @@ function InteractiveLesson({
                     color: "#fbbf24",
                     fontWeight: "bold",
                     textAlign: "center",
-                    fontSize: "12px",
+                    fontSize: "11px",
                     marginBottom: "8px",
                   }}
                 >
@@ -1539,7 +1541,7 @@ function InteractiveLesson({
                 <div
                   style={{
                     color: "#bbf7d0",
-                    fontSize: "12px",
+                    fontSize: "11px",
                     marginTop: "4px",
                   }}
                 >
@@ -1548,7 +1550,7 @@ function InteractiveLesson({
 
                 <div
                   style={{
-                    fontSize: "12px",
+                    fontSize: "11px",
                     color: "#86efac",
                     marginTop: "8px",
                   }}
@@ -1637,7 +1639,7 @@ function InteractiveLesson({
 
               <div
                 style={{
-                  fontSize: "12px",
+                  fontSize: "11px",
                   color: "#64748b",
                   marginBottom: "15px",
                 }}
@@ -1869,7 +1871,7 @@ function InteractiveLesson({
 
               <div
                 style={{
-                  fontSize: "12px",
+                  fontSize: "11px",
                   color: "#64748b",
                   marginBottom: "15px",
                 }}
@@ -2360,6 +2362,53 @@ export default function Home() {
   const [tab, setTab] = useState<
     "books" | "exams" | "lessons"
   >("books");
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
+  const [cachedOfflineItems, setCachedOfflineItems] = useState<{title: string, url: string, type: string}[]>([]);
+
+  async function loadCachedItems() {
+    const items: {title: string, url: string, type: string}[] = [];
+    try {
+      const pdfCache = await caches.open('sudan-student-offline-pdfs');
+      const pdfKeys = await pdfCache.keys();
+      const savedTitles = JSON.parse(localStorage.getItem('offline-file-titles') || '{}');
+      for (const req of pdfKeys) {
+        const fullUrl = req.url;
+        let title = decodeURIComponent(fullUrl.split('/').pop() || 'كتاب');
+        // Use saved Arabic title from localStorage
+        if (savedTitles[fullUrl]) title = savedTitles[fullUrl];
+        items.push({title: title, url: fullUrl, type: 'pdf'});
+      }
+      if ('indexedDB' in window) {
+        const lessonReq = indexedDB.open('sudan-student-offline', 1);
+        lessonReq.onsuccess = (e) => {
+          const db = (e.target as IDBOpenDBRequest).result;
+          if (db.objectStoreNames.contains('lessons')) {
+            const tx = db.transaction('lessons', 'readonly');
+            const store = tx.objectStore('lessons');
+            const all = store.getAll();
+            all.onsuccess = () => {
+              for (const l of all.result) {
+                const lessonContent = l.content;
+                const lessonTitle = lessonContent?.lesson_title || lessonContent?.unit_title || 'درس تفاعلي';
+                items.push({title: `⚡ درس: ${lessonTitle}`, url: `/lessons/${l.id}`, type: 'lesson'});
+              }
+              setCachedOfflineItems(items);
+            };
+          } else {
+            setCachedOfflineItems(items);
+          }
+        };
+        lessonReq.onerror = () => setCachedOfflineItems(items);
+      }
+    } catch (e) {
+      console.error(e);
+      setCachedOfflineItems(items);
+    }
+  }
+
+  useEffect(() => {
+    if (showOfflineModal) loadCachedItems();
+  }, [showOfflineModal]);
 
   const [lessons, setLessons] = useState<Lesson[]>(
     []
@@ -2694,6 +2743,20 @@ export default function Home() {
               >
                 اختر المادة التي تريدها
               </p>
+
+              {/* اعلان ميزة العمل بدون انترنت */}
+              <div style={{
+                marginTop: "16px",
+                padding: "10px 14px",
+                backgroundColor: "#14532d",
+                border: "1px solid #22c55e",
+                borderRadius: "10px",
+                color: "#bbf7d0",
+                fontSize: "13px",
+                fontWeight: "bold",
+              }}>
+                📶 ✅ الميزة الجديدة: افتح اي درس واضغط زر التحميل للعمل بدون انترنت في اي مكان!
+              </div>
             </div>
 
             <div
@@ -2850,7 +2913,7 @@ export default function Home() {
                 borderRadius: "10px",
                 padding: "4px",
                 marginBottom: "16px",
-                gap: "3px",
+                gap: "2px",
               }}
             >
               <button
@@ -2861,7 +2924,7 @@ export default function Home() {
                 }}
                 style={{
                   flex: 1,
-                  padding: "10px 4px",
+                  padding: "9px 2px",
                   border: "none",
                   borderRadius: "7px",
                   backgroundColor:
@@ -2871,7 +2934,7 @@ export default function Home() {
                   color: "#fff",
                   cursor: "pointer",
                   fontWeight: "bold",
-                  fontSize: "12px",
+                  fontSize: "11px",
                 }}
               >
                 📖 الكتب
@@ -2885,7 +2948,7 @@ export default function Home() {
                 }}
                 style={{
                   flex: 1,
-                  padding: "10px 4px",
+                  padding: "9px 2px",
                   border: "none",
                   borderRadius: "7px",
                   backgroundColor:
@@ -2895,7 +2958,7 @@ export default function Home() {
                   color: "#fff",
                   cursor: "pointer",
                   fontWeight: "bold",
-                  fontSize: "12px",
+                  fontSize: "11px",
                 }}
               >
                 📝 الامتحانات
@@ -2909,7 +2972,7 @@ export default function Home() {
                 }}
                 style={{
                   flex: 1,
-                  padding: "10px 4px",
+                  padding: "9px 2px",
                   border: "none",
                   borderRadius: "7px",
                   backgroundColor:
@@ -2919,23 +2982,41 @@ export default function Home() {
                   color: "#fff",
                   cursor: "pointer",
                   fontWeight: "bold",
-                  fontSize: "12px",
+                  fontSize: "11px",
                 }}
               >
                 ⚡ الدروس
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowOfflineModal(true)}
+                style={{
+                  flex: 1,
+                  padding: "9px 2px",
+                  borderRadius: "7px",
+                  backgroundColor: "#16a34a",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  fontSize: "11px",
+                  border: "1px solid #86efac",
+                }}
+              >
+                📶 بدون نت
               </button>
 
               <Link
   href={`/chat?subject=${subject.id}`}
                 style={{
                   flex: 1,
-                  padding: "10px 4px",
+                  padding: "9px 2px",
                   borderRadius: "7px",
                   backgroundColor: "#7c3aed",
                   color: "#fff",
                   cursor: "pointer",
                   fontWeight: "bold",
-                  fontSize: "12px",
+                  fontSize: "11px",
                   textDecoration: "none",
                   display: "flex",
                   alignItems: "center",
@@ -3006,28 +3087,31 @@ export default function Home() {
                           </div>
                         </div>
 
-                        <a
-                          href={file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            flexShrink: 0,
-                            padding:
-                              "8px 14px",
-                            backgroundColor:
-                              "#22c55e",
-                            textDecoration:
-                              "none",
-                            color: "#fff",
-                            borderRadius:
-                              "7px",
-                            fontWeight:
-                              "bold",
-                            fontSize: "13px",
-                          }}
-                        >
-                          فتح
-                        </a>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <PDFDownloadButton fileUrl={file.url} fileName={file.title} />
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              flexShrink: 0,
+                              padding:
+                                "8px 14px",
+                              backgroundColor:
+                                "#22c55e",
+                              textDecoration:
+                                "none",
+                              color: "#fff",
+                              borderRadius:
+                                "7px",
+                              fontWeight:
+                                "bold",
+                              fontSize: "13px",
+                            }}
+                          >
+                            فتح
+                          </a>
+                        </div>
                       </div>
                     )
                   )
@@ -3188,65 +3272,78 @@ export default function Home() {
                   >
                     {lessons.map(
                       (lesson) => (
-                        <button
-                          type="button"
+                        <div
                           key={lesson.id}
-                          onClick={() => {
-                            setSelectedLesson(
-                              lesson
-                            );
-                            setLessonStage(
-                              "learn"
-                            );
-                            setVocabIndex(
-                              0
-                            );
-                          }}
                           style={{
-                            padding: "15px",
+                            padding: "12px",
                             borderRadius:
                               "10px",
                             backgroundColor:
                               "#1e293b",
                             border:
                               "1px solid #334155",
-                            color: "#fff",
-                            textAlign:
-                              "right",
-                            cursor:
-                              "pointer",
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
                           }}
                         >
-                          <div
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedLesson(
+                                lesson
+                              );
+                              setLessonStage(
+                                "learn"
+                              );
+                              setVocabIndex(
+                                0
+                              );
+                            }}
                             style={{
-                              fontSize:
-                                "12px",
-                              color:
-                                "#fbbf24",
-                              marginBottom:
-                                "5px",
+                              flex: 1,
+                              padding: 0,
+                              border: 'none',
+                              background: 'transparent',
+                              color: "#fff",
+                              textAlign:
+                                "right",
+                              cursor:
+                                "pointer",
                             }}
                           >
-                            {
-                              lesson.unit_title
-                            }
-                          </div>
+                            <div
+                              style={{
+                                fontSize:
+                                  "12px",
+                                color:
+                                  "#fbbf24",
+                                marginBottom:
+                                  "5px",
+                              }}
+                            >
+                              {
+                                lesson.unit_title
+                              }
+                            </div>
 
-                          <div
-                            style={{
-                              fontWeight:
-                                "bold",
-                              fontSize:
-                                "14px",
-                              lineHeight:
-                                1.6,
-                            }}
-                          >
-                            {
-                              lesson.lesson_title
-                            }
-                          </div>
-                        </button>
+                            <div
+                              style={{
+                                fontWeight:
+                                  "bold",
+                                fontSize:
+                                  "14px",
+                                lineHeight:
+                                  1.6,
+                              }}
+                            >
+                              {
+                                lesson.lesson_title
+                              }
+                            </div>
+                          </button>
+                          <LessonDownloadButton lessonId={String(lesson.id)} lessonContent={lesson} />
+                        </div>
                       )
                     )}
                   </div>
@@ -3266,6 +3363,61 @@ export default function Home() {
                     المادة.
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showOfflineModal && (
+        <div
+          onClick={() => setShowOfflineModal(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.8)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              backgroundColor: '#1e293b',
+              borderRadius: '14px',
+              width: '100%',
+              maxWidth: '500px',
+              maxHeight: '85vh',
+              overflow: 'auto',
+              padding: '20px',
+            }}
+          >
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px'}}>
+              <h3 style={{color: 'white', margin: 0, fontSize: '18px'}}>📶 المحتوى المحمل بدون نت</h3>
+              <button onClick={() => setShowOfflineModal(false)} style={{background: '#dc2626', color: 'white', border: 'none', borderRadius: '8px', width: '36px', height: '36px', fontWeight: 'bold', cursor: 'pointer', fontSize: '18px'}}>×</button>
+            </div>
+
+            {cachedOfflineItems.length === 0 ? (
+              <div style={{textAlign: 'center', color: '#94a3b8', padding: '40px 10px'}}>
+                ⚠️ لا يوجد محتوى محمل بعد للعمل بدون انترنت.
+                <br/>
+                <small>اضغط على زر التحميل بجانب الكتاب او الدرس لتحميله، والدردشة تحتاج انترنت دائما.</small>
+              </div>
+            ) : (
+              <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                {cachedOfflineItems.map((it, i) => (
+                  <div key={i} style={{padding: '12px', backgroundColor: '#0f172a', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                    <span style={{color: 'white', fontSize: '14px', flex: 1, minWidth: 0}}>
+                      {it.type === 'pdf' ? '📄' : '⚡'} {it.title}
+                    </span>
+                    <a href={it.url} target={it.type === 'lesson' ? '_self' : '_blank'} rel="noopener noreferrer" style={{background: '#22c55e', color: 'white', padding: '6px 14px', borderRadius: '6px', textDecoration: 'none', fontSize: '12px', fontWeight: 'bold', flexShrink: 0}}>
+                      فتح
+                    </a>
+                  </div>
+                ))}
               </div>
             )}
           </div>

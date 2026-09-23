@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import InstallAppButton from "@/components/InstallAppButton";
 import UpdateBanner from "@/components/UpdateBanner";
+import StatsTracker from "@/components/StatsTracker";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "مساعد الشهادة الثانوية السودانية",
@@ -45,6 +47,7 @@ export default function RootLayout({
           backgroundColor: "#0f172a",
         }}
       >
+        <StatsTracker />
         <InstallAppButton />
         <UpdateBanner />
         {children}
