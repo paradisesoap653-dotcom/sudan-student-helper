@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/react";
 import InstallAppButton from "@/components/InstallAppButton";
 import UpdateBanner from "@/components/UpdateBanner";
 import StatsTracker from "@/components/StatsTracker";
@@ -51,6 +52,7 @@ export default function RootLayout({
         <InstallAppButton />
         <UpdateBanner />
         {children}
+        <Analytics />
       </body>
     </html>
   );
