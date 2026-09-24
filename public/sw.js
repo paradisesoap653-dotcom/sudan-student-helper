@@ -1,4 +1,4 @@
-const VERSION = "v5-2026-09-06-a";
+const VERSION = "v9-2026-09-24-a";
 const CACHE_NAME = "sudan-student-helper-" + VERSION;
 
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icon.svg"];
@@ -24,7 +24,7 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key !== CACHE_NAME)
+            .filter((key) => key !== CACHE_NAME && key !== 'sudan-student-offline-pdfs' && key !== 'sudan-student-offline-lessons')
             .map((key) => caches.delete(key))
         )
       )
@@ -45,9 +45,26 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
 
-  // API responses (especially health) must never be cached or replaced with
-  // an offline HTML page. Let the browser handle these requests directly.
-  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
+  // API responses must never be cached.
+  if (url.pathname.startsWith("/api/")) return;
+
+  // For PDF files from external storage: use cache-first strategy
+  if (url.pathname.endsWith('.pdf')) {
+    event.respondWith(
+      caches.match(request).then(cached => {
+        if (cached) return cached;
+        return fetch(request).then(response => {
+          const copy = response.clone();
+          caches.open('sudan-student-offline-pdfs').then(cache => cache.put(request, copy)).catch(() => {});
+          return response;
+        }).catch(() => caches.match("/"));
+      })
+    );
+    return;
+  }
+
+  // Original app shell strategy for same-origin navigation/assets
+  if (url.origin !== self.location.origin) return;
 
   event.respondWith(
     fetch(request)

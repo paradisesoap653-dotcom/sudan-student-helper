@@ -195,6 +195,23 @@ export async function POST(req: NextRequest) {
     const result = await generateChatAnswer(message, context, history);
     let answer = result?.answer;
 
+    // Clean up any remaining LaTeX symbols that might have slipped through
+    if (answer) {
+      answer = answer
+        .replace(/\\cdot/g, '×')
+        .replace(/\\times/g, '×')
+        .replace(/\\div/g, '÷')
+        .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '$1 ÷ $2')
+        .replace(/\^\{?(\d+)\}?/g, '^$1')
+        .replace(/\^2/g, ' تربيع')
+        .replace(/\^3/g, ' تكعيب')
+        .replace(/\$/g, '')
+        .replace(/\\/g, '')
+        .replace(/\\alpha/g, 'ألفا')
+        .replace(/\\beta/g, 'بيتا')
+        .replace(/\\gamma/g, 'جاما');
+    }
+
     // تبقى المقتطفات المحلية متاحة عند غياب المفاتيح أو تعطل جميع المزودين.
     if (!answer) {
       const lessonList =

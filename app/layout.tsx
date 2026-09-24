@@ -1,6 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 import InstallAppButton from "@/components/InstallAppButton";
 import UpdateBanner from "@/components/UpdateBanner";
+import StatsTracker from "@/components/StatsTracker";
+import "./globals.css";
+
+const GA_MEASUREMENT_ID = "G-XXXXXXXXXX"; // ضع هنا معرف قياس جوجل اناليتكس الخاص بك
 
 export const metadata: Metadata = {
   title: "مساعد الشهادة الثانوية السودانية",
@@ -45,9 +50,23 @@ export default function RootLayout({
           backgroundColor: "#0f172a",
         }}
       >
+        {/* Google Analytics */}
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', 'G-XXXXXXXXXX');
+            `,
+          }}
+        />
+        <StatsTracker />
         <InstallAppButton />
         <UpdateBanner />
         {children}
+        <VercelAnalytics />
       </body>
     </html>
   );

@@ -53,8 +53,23 @@ export default function InstallAppButton() {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker
         .register("/sw.js")
-        .then(() => {
+        .then((reg) => {
           console.log("Service Worker registered successfully");
+          // Take control of the page immediately without waiting for refresh
+          if (reg.waiting) {
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  newWorker.postMessage({ type: 'SKIP_WAITING' });
+                }
+              });
+            }
+          });
+          // Don't auto-reload, download buttons work without SW active
         })
         .catch((error) => {
           console.log("Service Worker registration error:", error);
