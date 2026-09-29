@@ -40,6 +40,10 @@ export async function PATCH(request: NextRequest) {
       const v = String(body.vehicleType).trim();
       updates.vehicle_type = v ? v.slice(0, 50) : null;
     }
+    if (body.licenseNumber !== undefined) {
+      const v = String(body.licenseNumber).trim();
+      if (v) updates.license_number = v.slice(0, 40);
+    }
     if (body.isOnline !== undefined && typeof body.isOnline === "boolean") {
       updates.is_online = body.isOnline;
     }
@@ -55,7 +59,7 @@ export async function PATCH(request: NextRequest) {
       .from("drivers")
       .update(updates)
       .eq("id", driver.id)
-      .select("id, phone, name, bank_account, vehicle_type, is_online")
+      .select("id, phone, name, bank_account, vehicle_type, license_number, is_online")
       .single();
 
     if (error || !data) {

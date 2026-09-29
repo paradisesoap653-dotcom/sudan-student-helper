@@ -19,6 +19,7 @@ export interface DriverRow {
   name: string | null;
   bank_account: string | null;
   vehicle_type: string | null;
+  license_number: string | null;
   is_online: boolean;
   current_lat?: number | null;
   current_lng?: number | null;
@@ -32,7 +33,7 @@ export async function findDriverByToken(
   const admin = getSupabaseAdmin();
   const { data } = await admin
     .from("drivers")
-    .select("id, phone, name, bank_account, vehicle_type, is_online, current_lat, current_lng")
+    .select("id, phone, name, bank_account, vehicle_type, license_number, is_online, current_lat, current_lng")
     .eq("auth_token", token)
     .maybeSingle();
   return (data as DriverRow | null) ?? null;
@@ -46,6 +47,7 @@ export function serializeDriver(row: DriverRow) {
     name: row.name,
     bankAccount: row.bank_account,
     vehicleType: row.vehicle_type,
+    licenseNumber: row.license_number,
     isOnline: row.is_online,
   };
 }
