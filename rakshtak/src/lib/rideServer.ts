@@ -49,16 +49,17 @@ export function validateCreateRide(body: Record<string, unknown>): { ok: true; i
     return t.length > max ? null : t;
   };
 
-  const passengerName = cleanText(body.passengerName, "الاسم", 50);
+  // الاسم اختياري — لو ما اتكتب أو غير صالح نستخدم "راكب" افتراضياً
+  const passengerName = cleanText(body.passengerName, "الاسم", 50) || "راكب";
   const pickupLocation = cleanText(body.pickupLocation, "مكان التحرك", 300);
   const destination = cleanText(body.destination, "الوجهة", 300);
-  if (!passengerName || !pickupLocation || !destination) {
-    return { ok: false, error: "أكمل الاسم ومكان التحرك والوجهة (بنصوص لا تتجاوز الحدود)" };
+  if (!pickupLocation || !destination) {
+    return { ok: false, error: "أكمل مكان التحرك والوجهة" };
   }
 
   const phoneNumber = normalizeSudanesePhone(typeof body.phone === "string" ? body.phone : "");
   if (!phoneNumber) {
-    return { ok: false, error: "رقم الهاتف السوداني غير صحيح (9 أرقام تبدأ بـ 9)" };
+    return { ok: false, error: "رقم الهاتف السوداني غير صحيح (9 أرقام تبدأ بـ 9 أو 1)" };
   }
 
   const serviceType =

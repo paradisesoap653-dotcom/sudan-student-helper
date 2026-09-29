@@ -34,6 +34,7 @@ interface DriverProfile {
   name: string;
   bankAccount: string | null;
   vehicleType: string | null;
+  licenseNumber: string | null;
   isOnline: boolean;
 }
 
@@ -42,21 +43,20 @@ const DRIVER_TOKEN_KEY = "driver_token";
 const sameId = (a: unknown, b: unknown) =>
   a !== undefined && a !== null && b !== undefined && b !== null && String(a) === String(b);
 
-type AuthStage = "login" | "code" | "ready";
+type AuthStage = "login" | "ready";
 
 export default function DriverDashboard() {
   const [stage, setStage] = useState<AuthStage>("login");
   const [phoneDigits, setPhoneDigits] = useState("");
-  const [codeDigits, setCodeDigits] = useState("");
   const [busy, setBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authInfo, setAuthInfo] = useState<string | null>(null);
-  const [previewCode, setPreviewCode] = useState<string | null>(null);
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [bankDraft, setBankDraft] = useState("");
   const [vehicleDraft, setVehicleDraft] = useState("");
+  const [licenseDraft, setLicenseDraft] = useState("");
   const [showBank, setShowBank] = useState(false);
 
   const [isAvailable, setIsAvailable] = useState(true);
@@ -177,9 +177,7 @@ export default function DriverDashboard() {
     syncCurrentRide(null);
     setAvailableRides([]);
     setStage("login");
-    setCodeDigits("");
     setAuthInfo(null);
-    setPreviewCode(null);
     knownIdsRef.current = new Set();
   };
 
@@ -209,6 +207,7 @@ export default function DriverDashboard() {
             name: data.driver.name || "",
             bankAccount: data.driver.bankAccount || null,
             vehicleType: data.driver.vehicleType || null,
+            licenseNumber: data.driver.licenseNumber || null,
             isOnline: data.driver.isOnline !== false,
           };
           syncProfile(p);
@@ -219,7 +218,7 @@ export default function DriverDashboard() {
           return;
         }
         localStorage.removeItem(DRIVER_TOKEN_KEY);
-        setAuthError("انتهت جلستك — سجّل الدخول برمز التحقق من جديد");
+        setAuthError("انتهت جلستك — سجّل الدخول من جديد");
       } catch {
         if (!cancelled) {
           setAuthError("تعذر الاتصال بالخادم — تأكد من تشغيل المتغيرات ثم أعد المحاولة");
@@ -293,65 +292,42 @@ export default function DriverDashboard() {
     [pollRides]
   );
 
-  // ── OTP: طلب رمز ──────────────────────────────────────────────
-  const requestOtp = async (e: React.FormEvent) => {
+  // ── تسجيل/دخول السائق مباشرة (بلا رمز تحقق) ─────────────────────
+  const registerDriver = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
     const phone = normalizeSudanesePhone(phoneDigits);
     if (!phone) {
-      setAuthError("أدخل رقم هاتف سوداني صحيح (9 أرقام تبدأ بـ 9)");
+      setAuthError("أدخل رقم هاتف سوداني صحيح (9 أرقام تبدأ بـ 9 أو 1)");
       return;
     }
-    setBusy(true);
-    setAuthError(null);
-    setAuthInfo(null);
-    setPreviewCode(null);
-    try {
-      const res = await fetch("/api/driver/request-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data.ok) {
-        setStage("code");
-        setAuthInfo(data.message || "تم إرسال رمز التحقق إلى هاتفك");
-        setPreviewCode(data.previewCode || null);
-      } else {
-        setAuthError(data.error || "تعذر إرسال الرمز — حاول مرة أخرى");
-      }
-    } catch {
-      setAuthError("خطأ في الاتصال بالخادم");
-    } finally {
-      setBusy(false);
+    if (!nameDraft.trim()) {
+      setAuthError("الاسم مطلوب");
+      return;
     }
-  };
-
-  // ── OTP: تحقق ودخول ───────────────────────────────────────────
-  const verifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (busy) return;
-    const phone = normalizeSudanesePhone(phoneDigits);
-    if (!phone || !/^\d{6}$/.test(codeDigits)) {
-      setAuthError("أدخل رمز التحقق (6 أرقام)");
+    if (!licenseDraft.trim()) {
+      setAuthError("رقم الرخصة مطلوب");
       return;
     }
     setBusy(true);
     setAuthError(null);
     try {
-      const payload: Record<string, string> = { phone, code: codeDigits };
-      if (nameDraft.trim()) payload.name = nameDraft.trim();
+      const payload: Record<string, string> = {
+        phone,
+        name: nameDraft.trim(),
+        licenseNumber: licenseDraft.trim(),
+      };
       if (bankDraft.trim()) payload.bankAccount = bankDraft.replace(/\s+/g, "");
       if (vehicleDraft.trim()) payload.vehicleType = vehicleDraft.trim();
 
-      const res = await fetch("/api/driver/verify-otp", {
+      const res = await fetch("/api/driver/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok || !data.driver) {
-        setAuthError(data.error || "فشل التحقق — حاول مرة أخرى");
+        setAuthError(data.error || "فشل التسجيل — حاول مرة أخرى");
         return;
       }
 
@@ -361,6 +337,7 @@ export default function DriverDashboard() {
         name: data.driver.name || "",
         bankAccount: data.driver.bankAccount || null,
         vehicleType: data.driver.vehicleType || null,
+        licenseNumber: data.driver.licenseNumber || null,
         isOnline: data.driver.isOnline !== false,
       };
       syncProfile(p);
@@ -369,7 +346,6 @@ export default function DriverDashboard() {
       localStorage.setItem("driver_phone", p.phone);
       setIsAvailable(p.isOnline);
       setStage("ready");
-      setCodeDigits("");
       knownIdsRef.current = new Set();
       locateDriver();
     } catch {
@@ -400,6 +376,7 @@ export default function DriverDashboard() {
           name: nameDraft,
           bankAccount: bankDraft.replace(/\s+/g, ""),
           vehicleType: vehicleDraft,
+          licenseNumber: licenseDraft,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -411,6 +388,7 @@ export default function DriverDashboard() {
             name: data.driver.name || p.name,
             bankAccount: data.driver.bankAccount ?? p.bankAccount,
             vehicleType: data.driver.vehicleType ?? p.vehicleType,
+            licenseNumber: data.driver.licenseNumber ?? p.licenseNumber,
           });
         }
         setEditingProfile(false);
@@ -518,7 +496,7 @@ export default function DriverDashboard() {
   const showDriver = stage === "ready" && profile;
 
   return (
-    <div className="min-h-screen bg-[#161b22] text-slate-100 p-4 flex flex-col justify-between w-full min-w-full">
+    <div className="min-h-screen bg-gradient-to-b from-[#082f49] via-[#0c4a6e] to-[#0369a1] text-slate-100 p-4 flex flex-col justify-between w-full min-w-full">
       <div className="w-full max-w-xl mx-auto flex-1 flex flex-col justify-between space-y-4">
         <header className="flex justify-between items-center pt-2 pb-1">
           <div className="flex items-center gap-2">
@@ -534,127 +512,97 @@ export default function DriverDashboard() {
           </button>
         </header>
 
-        {/* ══════════ شاشة الدخول برمز التحقق ══════════ */}
+        {/* ══════════ شاشة تسجيل/دخول السائق (بلا رمز تحقق) ══════════ */}
         {stage !== "ready" ? (
           <div className="space-y-5 py-6 flex-1 flex flex-col justify-center">
             <div className="text-center space-y-1.5">
               <h2 className="text-lg font-bold text-white">دخول السائق 🚖</h2>
               <p className="text-xs text-slate-400">
-                {stage === "login"
-                  ? "أدخل رقم هاتفك وسيصلك رمز تحقق (OTP) — لا مزيد من الدخول بدون تحقق"
-                  : "أدخل الرمز المكوّن من 6 أرقام الذي وصل إلى هاتفك"}
+                أدخل بياناتك للانضمام كسائق — الاسم ورقم الرخصة مطلوبان
               </p>
             </div>
 
-            {stage === "login" ? (
-              <form onSubmit={requestOtp} className="space-y-4">
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">📞 رقم الهاتف:</label>
-                  <div
-                    className="flex items-stretch border border-slate-700 rounded-xl overflow-hidden bg-[#0d1117] focus-within:border-amber-500"
-                    style={{ direction: 'ltr' }}
-                  >
-                    <div className="bg-slate-800 text-amber-400 px-3.5 py-3 text-sm font-mono font-bold border-r border-slate-700 flex items-center gap-1.5 select-none shrink-0">
-                      <span>🇸🇩</span>
-                      <span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>+249</span>
-                    </div>
-                    <input
-                      type="tel"
-                      required
-                      inputMode="numeric"
-                      maxLength={10}
-                      value={phoneDigits}
-                      onChange={(e) => setPhoneDigits(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                      placeholder="9XXXXXXXX"
-                      className="w-full bg-transparent px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-left"
-                      style={{ direction: 'ltr' }}
-                    />
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="w-full py-4 bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 font-extrabold rounded-2xl text-base shadow-xl transition mt-2 disabled:opacity-50"
+            <form onSubmit={registerDriver} className="space-y-4">
+              {authInfo && (
+                <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2.5 leading-relaxed">
+                  ✅ {authInfo}
+                </p>
+              )}
+              <div>
+                <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">📞 رقم الهاتف:</label>
+                <div
+                  className="flex items-stretch border border-sky-700/60 rounded-xl overflow-hidden bg-[#0c4a6e] focus-within:border-amber-500"
+                  style={{ direction: 'ltr' }}
                 >
-                  {busy ? "جاري الإرسال..." : "إرسال رمز التحقق 📲"}
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={verifyOtp} className="space-y-4">
-                {authInfo && (
-                  <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2.5 leading-relaxed">
-                    ✅ {authInfo}
-                  </p>
-                )}
+                  <div className="bg-[#075985] text-amber-400 px-3.5 py-3 text-sm font-mono font-bold border-r border-sky-700/60 flex items-center gap-1.5 select-none shrink-0">
+                    <span>🇸🇩</span>
+                    <span style={{ direction: 'ltr', unicodeBidi: 'isolate' }}>+249</span>
+                  </div>
+                  <input
+                    type="tel"
+                    required
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={phoneDigits}
+                    onChange={(e) => setPhoneDigits(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="9XXXXXXXX أو 1XXXXXXXX"
+                    className="w-full bg-transparent px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-left"
+                    style={{ direction: 'ltr' }}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">🔢 رمز التحقق:</label>
+                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">الاسم: *</label>
                   <input
                     type="text"
                     required
-                    inputMode="numeric"
-                    autoFocus
-                    maxLength={6}
-                    value={codeDigits}
-                    onChange={(e) => setCodeDigits(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    placeholder="000000"
-                    className="w-full bg-[#0d1117] border border-slate-700 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono text-center tracking-[0.5em]"
-                    dir="ltr"
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    placeholder="اسمك الكريم"
+                    className="w-full bg-[#0c4a6e] border border-sky-700/60 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                   />
-                  {previewCode && (
-                    <p className="text-[11px] text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5 mt-2 leading-relaxed">
-                      🧪 وضع تجريبي (بدون مزوّد إرسال): استخدم الرمز{" "}
-                      <strong className="font-mono text-base tracking-widest">{previewCode}</strong>
-                    </p>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">الاسم:</label>
-                    <input
-                      type="text"
-                      value={nameDraft}
-                      onChange={(e) => setNameDraft(e.target.value)}
-                      placeholder="اختياري"
-                      className="w-full bg-[#0d1117] border border-slate-700 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">المركبة:</label>
-                    <input
-                      type="text"
-                      value={vehicleDraft}
-                      onChange={(e) => setVehicleDraft(e.target.value)}
-                      placeholder="مثال: ركشة"
-                      className="w-full bg-[#0d1117] border border-slate-700 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
-                    />
-                  </div>
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">🏦 رقم الحساب البنكي:</label>
+                  <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">🪪 رقم الرخصة: *</label>
                   <input
-                    type={showBank ? "text" : "password"}
-                    value={bankDraft}
-                    onChange={(e) => setBankDraft(e.target.value.replace(/\s+/g, ""))}
-                    placeholder="اختياري — لتحويل المستحقات"
-                    className="w-full bg-[#0d1117] border border-slate-700 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-right focus:border-amber-500"
+                    type="text"
+                    required
+                    value={licenseDraft}
+                    onChange={(e) => setLicenseDraft(e.target.value)}
+                    placeholder="رقم رخصة القيادة"
+                    className="w-full bg-[#0c4a6e] border border-sky-700/60 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
                   />
                 </div>
-                <button
-                  type="submit"
-                  disabled={busy}
-                  className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] text-slate-950 font-extrabold rounded-2xl text-base shadow-xl transition mt-2 disabled:opacity-50"
-                >
-                  {busy ? "جاري التحقق..." : "تحقق وادخل اللوحة ✅"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setStage("login"); setAuthInfo(null); setPreviewCode(null); setAuthError(null); }}
-                  className="w-full text-center text-xs text-slate-400 hover:text-white underline transition"
-                >
-                  تغيير رقم الهاتف
-                </button>
-              </form>
-            )}
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">المركبة:</label>
+                <input
+                  type="text"
+                  value={vehicleDraft}
+                  onChange={(e) => setVehicleDraft(e.target.value)}
+                  placeholder="اختياري — مثال: ركشة"
+                  className="w-full bg-[#0c4a6e] border border-sky-700/60 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-300 mb-1.5 block text-right">🏦 رقم الحساب البنكي:</label>
+                <input
+                  type={showBank ? "text" : "password"}
+                  value={bankDraft}
+                  onChange={(e) => setBankDraft(e.target.value.replace(/\s+/g, ""))}
+                  placeholder="اختياري — لتحويل المستحقات"
+                  className="w-full bg-[#0c4a6e] border border-sky-700/60 rounded-xl px-3.5 py-3 text-sm text-white placeholder-slate-500 focus:outline-none font-mono text-right focus:border-amber-500"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={busy}
+                className="w-full py-4 bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-slate-950 font-extrabold rounded-2xl text-base shadow-xl transition mt-2 disabled:opacity-50"
+              >
+                {busy ? "جاري الدخول..." : "دخول لوحة السائق 🚖"}
+              </button>
+            </form>
 
             {authError && (
               <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5 leading-relaxed">
@@ -665,7 +613,7 @@ export default function DriverDashboard() {
         ) : showDriver ? (
           <>
             {/* شريط معلومات السائق */}
-            <div className="flex items-center justify-between bg-[#0d1117] p-3 rounded-2xl border border-slate-800 gap-2">
+            <div className="flex items-center justify-between bg-[#0c4a6e] p-3 rounded-2xl border border-sky-800/70 gap-2">
               <div className="text-xs text-slate-300 space-y-1 min-w-0">
                 <div className="truncate">
                   {profile.name ? <span className="font-bold text-white">👤 {profile.name}</span> : null}{" "}
@@ -678,7 +626,7 @@ export default function DriverDashboard() {
                     <button
                       type="button"
                       onClick={() => setShowBank((s) => !s)}
-                      className="text-[9px] bg-slate-800 hover:bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700 transition"
+                      className="text-[9px] bg-[#075985] hover:bg-[#0284c7] text-slate-400 px-1.5 py-0.5 rounded border border-sky-700/60 transition"
                     >
                       {showBank ? "إخفاء" : "إظهار"}
                     </button>
@@ -686,6 +634,9 @@ export default function DriverDashboard() {
                 </div>
                 {profile.vehicleType ? (
                   <div className="text-[10px] text-slate-400">🛺 {profile.vehicleType}</div>
+                ) : null}
+                {profile.licenseNumber ? (
+                  <div className="text-[10px] text-slate-400">🪪 رخصة: {profile.licenseNumber}</div>
                 ) : null}
               </div>
               <div className="flex flex-col gap-1.5 shrink-0">
@@ -701,10 +652,11 @@ export default function DriverDashboard() {
                     setNameDraft(profile.name || "");
                     setBankDraft(profile.bankAccount || "");
                     setVehicleDraft(profile.vehicleType || "");
+                    setLicenseDraft(profile.licenseNumber || "");
                     setAuthInfo(null);
                     setAuthError(null);
                   }}
-                  className="text-[10px] font-bold text-slate-300 hover:text-white bg-slate-800/60 px-2.5 py-1.5 rounded-lg border border-slate-700 transition"
+                  className="text-[10px] font-bold text-slate-300 hover:text-white bg-[#075985]/60 px-2.5 py-1.5 rounded-lg border border-sky-700/60 transition"
                 >
                   تعديل البيانات ✏️
                 </button>
@@ -712,7 +664,7 @@ export default function DriverDashboard() {
             </div>
 
             {editingProfile && (
-              <div className="bg-[#0d1117] border border-slate-700 rounded-2xl p-4 space-y-3">
+              <div className="bg-[#0c4a6e] border border-sky-700/60 rounded-2xl p-4 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] font-semibold text-slate-300 mb-1 block text-right">الاسم:</label>
@@ -720,7 +672,7 @@ export default function DriverDashboard() {
                       type="text"
                       value={nameDraft}
                       onChange={(e) => setNameDraft(e.target.value)}
-                      className="w-full bg-[#161b22] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                      className="w-full bg-[#075985] border border-sky-700/60 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
                     />
                   </div>
                   <div>
@@ -729,9 +681,18 @@ export default function DriverDashboard() {
                       type="text"
                       value={vehicleDraft}
                       onChange={(e) => setVehicleDraft(e.target.value)}
-                      className="w-full bg-[#161b22] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                      className="w-full bg-[#075985] border border-sky-700/60 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-semibold text-slate-300 mb-1 block text-right">🪪 رقم الرخصة:</label>
+                  <input
+                    type="text"
+                    value={licenseDraft}
+                    onChange={(e) => setLicenseDraft(e.target.value)}
+                    className="w-full bg-[#075985] border border-sky-700/60 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500"
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] font-semibold text-slate-300 mb-1 block text-right">🏦 الحساب البنكي:</label>
@@ -739,7 +700,7 @@ export default function DriverDashboard() {
                     type="text"
                     value={bankDraft}
                     onChange={(e) => setBankDraft(e.target.value.replace(/\s+/g, ""))}
-                    className="w-full bg-[#161b22] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none font-mono text-right focus:border-amber-500"
+                    className="w-full bg-[#075985] border border-sky-700/60 rounded-lg px-3 py-2 text-sm text-white focus:outline-none font-mono text-right focus:border-amber-500"
                   />
                 </div>
                 <div className="flex gap-2">
@@ -754,7 +715,7 @@ export default function DriverDashboard() {
                   <button
                     type="button"
                     onClick={() => setEditingProfile(false)}
-                    className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl transition"
+                    className="px-4 py-2.5 bg-[#075985] hover:bg-[#0284c7] text-slate-300 font-bold text-xs rounded-xl transition"
                   >
                     إلغاء
                   </button>
@@ -764,7 +725,7 @@ export default function DriverDashboard() {
 
             {/* حالة التواجد + الموقع */}
             <div className="space-y-2">
-              <div className="flex justify-between items-center bg-[#0d1117] p-3 rounded-2xl border border-slate-800">
+              <div className="flex justify-between items-center bg-[#0c4a6e] p-3 rounded-2xl border border-sky-800/70">
                 <span className="text-sm font-semibold text-slate-300">حالة التواجد:</span>
                 <button
                   onClick={toggleAvailability}
@@ -779,7 +740,7 @@ export default function DriverDashboard() {
                 </button>
               </div>
 
-              <div className="flex items-center justify-between bg-[#0d1117] p-3 rounded-2xl border border-slate-800">
+              <div className="flex items-center justify-between bg-[#0c4a6e] p-3 rounded-2xl border border-sky-800/70">
                 <span className="text-xs text-slate-300">
                   {coords
                     ? "📍 موقعك مفعّل — نعرض الطلبات الأقرب خلال 10 كم"
@@ -789,7 +750,7 @@ export default function DriverDashboard() {
                   type="button"
                   onClick={() => locateDriver(true)}
                   disabled={locating}
-                  className="text-[10px] bg-slate-800 hover:bg-slate-700 text-amber-400 px-2.5 py-1.5 rounded-lg border border-slate-700 font-bold transition disabled:opacity-50"
+                  className="text-[10px] bg-[#075985] hover:bg-[#0284c7] text-amber-400 px-2.5 py-1.5 rounded-lg border border-sky-700/60 font-bold transition disabled:opacity-50"
                 >
                   {locating ? "..." : "تحديث موقعي"}
                 </button>
@@ -797,7 +758,7 @@ export default function DriverDashboard() {
             </div>
 
             {/* الخريطة */}
-            <div className="w-full h-44 rounded-2xl overflow-hidden border border-slate-700/60 shadow-xl shrink-0">
+            <div className="w-full h-44 rounded-2xl overflow-hidden border border-sky-700/40 shadow-xl shrink-0">
               <Map pickupName={currentRide ? currentRide.pickupLocation : "موقعي الحالي"} />
             </div>
 
@@ -808,7 +769,7 @@ export default function DriverDashboard() {
                 className={`py-3 text-xs font-extrabold rounded-xl border transition ${
                   activeTab === "available"
                     ? "bg-amber-500 text-slate-950 border-amber-500 shadow-md"
-                    : "bg-[#0d1117] text-slate-400 border-slate-800 hover:text-white"
+                    : "bg-[#0c4a6e] text-slate-400 border-sky-800/70 hover:text-white"
                 }`}
               >
                 الطلبات المتاحة 🔔 ({availableRides.length})
@@ -818,7 +779,7 @@ export default function DriverDashboard() {
                 className={`py-3 text-xs font-extrabold rounded-xl border transition ${
                   activeTab === "current"
                     ? "bg-amber-500 text-slate-950 border-amber-500 shadow-md"
-                    : "bg-[#0d1117] text-slate-400 border-slate-800 hover:text-white"
+                    : "bg-[#0c4a6e] text-slate-400 border-sky-800/70 hover:text-white"
                 }`}
               >
                 المشوار الحالي 🚖 {currentRide ? "(1)" : "(0)"}
@@ -829,17 +790,17 @@ export default function DriverDashboard() {
             {activeTab === "available" ? (
               <div className="space-y-3 flex-1">
                 {!isAvailable ? (
-                  <div className="text-center py-8 bg-[#0d1117] border border-slate-800 rounded-2xl text-slate-500 text-xs font-medium">
+                  <div className="text-center py-8 bg-[#0c4a6e] border border-sky-800/70 rounded-2xl text-slate-500 text-xs font-medium">
                     أنت في وضع «مشغول / استراحة 🔴» — الطلبات الجديدة لن تُقبل منك.
                   </div>
                 ) : availableRides.length === 0 ? (
-                  <div className="text-center py-8 bg-[#0d1117] border border-slate-800 rounded-2xl text-slate-500 text-xs font-medium">
+                  <div className="text-center py-8 bg-[#0c4a6e] border border-sky-800/70 rounded-2xl text-slate-500 text-xs font-medium">
                     لا توجد طلبات قريبة حالياً. انتظر قليلاً... ⏳
                   </div>
                 ) : (
                   availableRides.map((ride) => (
-                    <div key={ride.id} className="bg-[#0d1117] border border-slate-700/80 rounded-2xl p-4 space-y-3 shadow-lg">
-                      <div className="flex justify-between items-center text-xs border-b border-slate-800 pb-2.5">
+                    <div key={ride.id} className="bg-[#0c4a6e] border border-sky-700/70 rounded-2xl p-4 space-y-3 shadow-lg">
+                      <div className="flex justify-between items-center text-xs border-b border-sky-800/70 pb-2.5">
                         <span className="font-bold text-white text-sm">👤 {ride.passengerName}</span>
                         <div className="flex items-center gap-1.5">
                           {ride.distanceKm !== null && ride.distanceKm !== undefined ? (
@@ -885,12 +846,12 @@ export default function DriverDashboard() {
             ) : (
               <div className="space-y-3 flex-1">
                 {!currentRide ? (
-                  <div className="text-center py-8 bg-[#0d1117] border border-slate-800 rounded-2xl text-slate-500 text-xs font-medium">
+                  <div className="text-center py-8 bg-[#0c4a6e] border border-sky-800/70 rounded-2xl text-slate-500 text-xs font-medium">
                     لا توجد رحلة حالية قيد التنفيذ.
                   </div>
                 ) : (
-                  <div className="bg-[#0d1117] border border-slate-700/80 rounded-2xl p-4 space-y-3.5 shadow-lg">
-                    <div className="flex justify-between items-center text-xs border-b border-slate-800 pb-2.5">
+                  <div className="bg-[#0c4a6e] border border-sky-700/70 rounded-2xl p-4 space-y-3.5 shadow-lg">
+                    <div className="flex justify-between items-center text-xs border-b border-sky-800/70 pb-2.5">
                       <span className="font-bold text-emerald-400 text-sm">🟢 مشوار جاري (مشواري أنا)</span>
                       <span className="font-bold text-white text-sm">👤 {currentRide.passengerName}</span>
                     </div>
@@ -917,7 +878,7 @@ export default function DriverDashboard() {
                     <div className="grid grid-cols-2 gap-2 pt-1">
                       <a
                         href={`tel:${currentRide.phoneNumber}`}
-                        className="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-center text-xs font-bold rounded-xl border border-slate-700 transition"
+                        className="py-2.5 bg-[#075985] hover:bg-[#0284c7] text-slate-200 text-center text-xs font-bold rounded-xl border border-sky-700/60 transition"
                       >
                         اتصال بالزبون 📞
                       </a>
