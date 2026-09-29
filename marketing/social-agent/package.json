@@ -1,0 +1,15 @@
+{
+  "name": "sudan-apps-marketing-agent",
+  "version": "1.0.0",
+  "description": "وكيل آلي لنشر الاعلانات تلقائيا على فيسبوك انستغرام وتيك توك عبر Buffer",
+  "main": "publish-post.js",
+  "scripts": {
+    "publish": "node publish-post.js",
+    "list-channels": "node list-channels.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.0",
+    "dotenv": "^16.4.0",
+    "form-data": "^4.0.0"
+  }
+}
