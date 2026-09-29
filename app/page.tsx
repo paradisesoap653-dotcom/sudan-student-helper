@@ -3,6 +3,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../supabaseClient";
+import PDFDownloadButton from "../components/PDFDownloadButton";
+import {
+  listDownloadedPDFs,
+  openOfflinePDF,
+  removePDFOffline,
+  type OfflinePDFEntry,
+} from "../lib/offline-pdfs";
 
 /* =========================================================
    صورة الواجهة الرئيسية - Supabase
@@ -2358,8 +2365,15 @@ export default function Home() {
     useState<Subject | null>(null);
 
   const [tab, setTab] = useState<
-    "books" | "exams" | "lessons"
+    "books" | "exams" | "lessons" | "offline"
   >("books");
+
+  const [offlineFiles, setOfflineFiles] = useState<
+    OfflinePDFEntry[]
+  >([]);
+
+  const [loadingOfflineFiles, setLoadingOfflineFiles] =
+    useState(false);
 
   const [lessons, setLessons] = useState<Lesson[]>(
     []
@@ -2385,13 +2399,37 @@ export default function Home() {
   ======================================================= */
 
   const currentFiles = (() => {
-    if (!subject || tab === "lessons") return [];
+    if (!subject || tab === "lessons" || tab === "offline")
+      return [];
 
     const fromDb = dbFiles[subject.id + "|" + tab];
     if (fromDb && fromDb.length > 0) return fromDb;
 
     return CONTENT_DATABASE[subject.id]?.[tab] || [];
   })();
+
+  /* =======================================================
+     تحميل قائمة الملفات المحفوظة بدون انترنت
+  ======================================================= */
+
+  const refreshOfflineFiles = () => {
+    setLoadingOfflineFiles(true);
+    listDownloadedPDFs()
+      .then((files) => {
+        setOfflineFiles(
+          [...files].sort((a, b) =>
+            b.downloadedAt.localeCompare(a.downloadedAt)
+          )
+        );
+      })
+      .finally(() => setLoadingOfflineFiles(false));
+  };
+
+  useEffect(() => {
+    if (tab === "offline") {
+      refreshOfflineFiles();
+    }
+  }, [tab]);
 
   /* =======================================================
      تحميل الدروس
@@ -2925,6 +2963,30 @@ export default function Home() {
                 ⚡ الدروس
               </button>
 
+              <button
+                type="button"
+                onClick={() => {
+                  setTab("offline");
+                  setSelectedLesson(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: "10px 4px",
+                  border: "none",
+                  borderRadius: "7px",
+                  backgroundColor:
+                    tab === "offline"
+                      ? "#16a34a"
+                      : "transparent",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                  fontSize: "12px",
+                }}
+              >
+                📶 بدون نت
+              </button>
+
               <Link
   href={`/chat?subject=${subject.id}`}
                 style={{
@@ -2952,7 +3014,7 @@ export default function Home() {
                 الكتب والامتحانات
             ================================================= */}
 
-            {tab !== "lessons" && (
+            {(tab === "books" || tab === "exams") && (
               <div
                 style={{
                   display: "flex",
@@ -3006,28 +3068,41 @@ export default function Home() {
                           </div>
                         </div>
 
-                        <a
-                          href={file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <div
                           style={{
                             flexShrink: 0,
-                            padding:
-                              "8px 14px",
-                            backgroundColor:
-                              "#22c55e",
-                            textDecoration:
-                              "none",
-                            color: "#fff",
-                            borderRadius:
-                              "7px",
-                            fontWeight:
-                              "bold",
-                            fontSize: "13px",
+                            display: "flex",
+                            alignItems: "center",
                           }}
                         >
-                          فتح
-                        </a>
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              flexShrink: 0,
+                              padding:
+                                "8px 14px",
+                              backgroundColor:
+                                "#22c55e",
+                              textDecoration:
+                                "none",
+                              color: "#fff",
+                              borderRadius:
+                                "7px",
+                              fontWeight:
+                                "bold",
+                              fontSize: "13px",
+                            }}
+                          >
+                            فتح
+                          </a>
+
+                          <PDFDownloadButton
+                            fileUrl={file.url}
+                            fileName={file.title}
+                          />
+                        </div>
                       </div>
                     )
                   )
@@ -3044,6 +3119,164 @@ export default function Home() {
                   >
                     لا توجد ملفات مرفوعة
                     حالياً لهذه المادة.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* =================================================
+                الملفات المحفوظة بدون انترنت
+            ================================================= */}
+
+            {tab === "offline" && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#94a3b8",
+                    lineHeight: 1.7,
+                    padding: "0 2px",
+                  }}
+                >
+                  الملفات اللي حمّلتها هنا بتفتح حتى لو
+                  ماعندك انترنت. اضغط زر التحميل 📥 جنب
+                  اي ملف في تبويب الكتب او الامتحانات
+                  عشان تضيفه هنا.
+                </div>
+
+                {loadingOfflineFiles ? (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      color: "#94a3b8",
+                      padding: "20px 10px",
+                    }}
+                  >
+                    جاري التحميل...
+                  </div>
+                ) : offlineFiles.length > 0 ? (
+                  offlineFiles.map((file) => (
+                    <div
+                      key={file.url}
+                      style={{
+                        padding: "14px",
+                        borderRadius: "11px",
+                        backgroundColor: "#1e293b",
+                        border: "1px solid #334155",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "10px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          minWidth: 0,
+                          flex: 1,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontWeight: "bold",
+                            fontSize: "14px",
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          {file.title}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            color: "#94a3b8",
+                            marginTop: "4px",
+                          }}
+                        >
+                          ✅ محمّل بدون نت
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          flexShrink: 0,
+                          display: "flex",
+                          gap: "8px",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const ok = await openOfflinePDF(
+                              file.url
+                            );
+                            if (!ok) {
+                              alert(
+                                "تعذر فتح الملف من الذاكرة، حاول تحميله مرة اخرى."
+                              );
+                            }
+                          }}
+                          style={{
+                            padding: "8px 14px",
+                            backgroundColor: "#22c55e",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "7px",
+                            fontWeight: "bold",
+                            fontSize: "13px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          فتح
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (
+                              confirm(
+                                `هل تريد ازالة "${file.title}" من الملفات المحملة؟`
+                              )
+                            ) {
+                              await removePDFOffline(
+                                file.url
+                              );
+                              refreshOfflineFiles();
+                            }
+                          }}
+                          style={{
+                            padding: "8px 10px",
+                            backgroundColor: "#7f1d1d",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "7px",
+                            fontWeight: "bold",
+                            fontSize: "13px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      color: "#94a3b8",
+                      padding: "35px 10px",
+                      backgroundColor: "#1e293b",
+                      borderRadius: "12px",
+                    }}
+                  >
+                    مافي ملفات محفوظة بدون انترنت حتى
+                    الآن.
                   </div>
                 )}
               </div>

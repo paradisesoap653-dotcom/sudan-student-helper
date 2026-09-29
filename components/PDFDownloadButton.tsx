@@ -42,7 +42,14 @@ export default function PDFDownloadButton({ fileUrl, fileName }: PDFDownloadButt
     setProgress(0);
   };
 
-  if (!('caches' in window) || !navigator.serviceWorker?.controller) {
+  // نعتمد فقط على دعم Cache Storage API، ولا نشترط أن يكون هنالك
+  // Service Worker "متحكم" فعليًا بالصفحة الحالية، لأن هذا الشرط كان
+  // يمنع ظهور أيقونة "تحميل بدون انترنت" عند فتح الرابط مباشرة من
+  // المتصفح (الصفحة الأولى لا يتحكم بها الـ Service Worker بعد حتى
+  // يكتمل تسجيله وتفعيله)، بينما كانت تظهر فقط عند الفتح من التطبيق
+  // المثبت على الشاشة الرئيسية (لأن الـ Service Worker يكون مفعّلاً
+  // مسبقاً من قبل).
+  if (typeof window === 'undefined' || !('caches' in window)) {
     return null;
   }
 
