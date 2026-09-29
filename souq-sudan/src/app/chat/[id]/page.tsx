@@ -10,6 +10,7 @@ import VoiceRecorder from "@/components/VoiceRecorder";
 import { supabase } from "@/lib/supabase";
 import { displayPhone, formatPrice, timeAgo } from "@/lib/format";
 import { getSavedPhone } from "@/lib/session";
+import { markConversationRead } from "@/lib/notifications";
 import type { Conversation, Message } from "@/lib/types";
 
 export default function ChatPage() {
@@ -69,15 +70,28 @@ export default function ChatPage() {
       )
       .subscribe();
 
+    // تحديث احتياطي كل 3 ثواني — يضمن وصول الرسائل حتى لو التحديث
+    // الفوري (Realtime) ما اشتغلش لأي سبب (شبكة بتحجب WebSocket مثلاً)
+    const pollInterval = setInterval(fetchAll, 3000);
+
     return () => {
       alive = false;
       supabase.removeChannel(channel);
+      clearInterval(pollInterval);
     };
   }, [myPhone, params.id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // بمجرد ما المحادثة تفتح وفيها رسائل، نسجّلها كمقروءة —
+  // كده مؤشر "جديد" في صفحة "محادثاتي" بيختفي فوراً
+  useEffect(() => {
+    if (typeof params.id === "string" && messages.length > 0) {
+      markConversationRead(params.id);
+    }
+  }, [params.id, messages.length]);
 
   if (!myPhone) {
     return (

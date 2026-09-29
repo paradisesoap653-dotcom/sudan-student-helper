@@ -19,6 +19,11 @@ export default function ListingDetailPage() {
   const [activeMedia, setActiveMedia] = useState(0);
   const [showGate, setShowGate] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [myPhone, setMyPhone] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMyPhone(getSavedPhone());
+  }, []);
 
   useEffect(() => {
     const fetchListing = async () => {
@@ -124,6 +129,7 @@ export default function ListingDetailPage() {
 
   const media = listing.listing_media?.sort((a, b) => a.sort_order - b.sort_order) ?? [];
   const isCar = listing.category === "car";
+  const isOwner = !!myPhone && myPhone === listing.seller_phone;
 
   return (
     <div className="min-h-screen bg-[#0b1220]">
@@ -223,7 +229,11 @@ export default function ListingDetailPage() {
             <span className="font-bold text-white">{listing.seller_name || "بائع"}</span>
           </div>
 
-          {listing.status === "available" ? (
+          {isOwner ? (
+            <div className="w-full py-4 bg-sky-500/10 border border-sky-500/30 text-sky-300 font-extrabold rounded-2xl text-sm text-center">
+              📋 هذا إعلانك أنت — لعرض رسائل المهتمين به، ادخل على &quot;محادثاتي&quot;
+            </div>
+          ) : listing.status === "available" ? (
             <button
               onClick={handleContactClick}
               disabled={starting}
